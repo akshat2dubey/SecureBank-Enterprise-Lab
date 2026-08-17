@@ -1,0 +1,11 @@
+# SecureBank Enterprise Lab — lab host table (Module 1)
+# ------------------------------------------------------
+# Domain "securebank.lab" is internal to the lab only (10.10.10.0/24).
+# It must never be registered in public DNS.
+# Reachability of these names is configured in Module 2 (static IPs).
+#
+# One line per lab VM. Add new VMs here first, then re-run scripts/setup.sh.
+
+10.10.10.10 securebank-srv securebank-srv.securebank.lab
+10.10.10.20 kali-securebank kali-securebank.securebank.lab
+10.10.10.30 traffic-analyzer traffic-analyzer.securebank.lab

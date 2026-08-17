@@ -1,0 +1,7 @@
+# Line-ending policy for SecureBank Enterprise Lab
+# Shell scripts and Linux config templates MUST stay LF — they are copied
+# into lab VMs and CRLF would break them.
+* text=auto
+*.sh text eol=lf
+*.conf text eol=lf
+configs/etc/hosts text eol=lf
