@@ -34,6 +34,7 @@ BASE_PACKAGES=(
   openssh-server   # remote admin access
   sudo             # least-privilege elevation for the admin user
   curl wget        # HTTP clients (Stage 1 traffic, later health checks)
+  dnsutils         # dig/nslookup — DNS lookups (UDP traffic Stage 1 can see)
   git              # version control (future automation / stages)
   ca-certificates  # TLS trust store
   gnupg            # signature verification (apt keys)

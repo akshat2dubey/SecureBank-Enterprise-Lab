@@ -51,13 +51,51 @@ before the services exist.
 
 ## 5. Stage 1 observation points
 
-Stage 1 captures the **host-only segment** (`10.10.10.0/24`) in promiscuous mode
-or via a mirrored port. Because capture is passive, the server's firewall (Module 4)
-never blocks the analyzer — this is why Stage 1 can monitor the server without
-requiring any agent on it.
+Stage 1 is a **passive Scapy analyzer**:
+`stage1-network-traffic-analyzer/Project/outputs/network_traffic_analyzer.py`.
+It records **metadata only** (never payloads) and reports:
 
-Traffic Stage 1 should observe once services exist: SSH (22), HTTP/HTTPS (80/443),
-DNS (53, if added), database (3306/5432).
+| Report section | Meaning |
+|---|---|
+| packets / bytes | traffic volume |
+| protocols | TCP, UDP, ICMP, ARP, IPv4-other, IPv6-other, Other |
+| top sources / destinations | IP addresses |
+| top flows | e.g. `TCP 10.10.10.20:54321 -> 10.10.10.10:22` |
+| TCP flags | handshake / reset / fin activity |
+
+Capture is passive (promiscuous mode on the host-only segment, `10.10.10.0/24`),
+so the server's firewall (Module 4) never blocks it — **no agent is required on
+the server**.
+
+### Capture command (on the capture host — Kali or the analyzer VM)
+
+```bash
+# Find the interface that holds the 10.10.10.0/24 address
+ip -4 addr show
+# Capture 60 seconds of lab traffic
+sudo python3 network_traffic_analyzer.py --interface <iface> --timeout 60 --top 15 --json-out report.json
+# Or filter, e.g. SSH only
+sudo python3 network_traffic_analyzer.py --interface <iface> --bpf "tcp port 22" --timeout 60
+```
+
+### Traffic the server generates (`scripts/generate-lab-traffic.sh`)
+
+| Stage 2 activity | Analyzer report | Note |
+|---|---|---|
+| SSH connections (22) | TCP flows + TCP flags; `auth.log` entries | every admin login |
+| DNS lookups (53) | UDP flows | queries leave via the NAT resolver by default; to see them on the host-only segment, add dnsmasq on the server (Module 2/3) and use `dig @10.10.10.10` |
+| HTTP/HTTPS (80/443) | TCP flows + TCP flags | the analyzer reports TLS as TCP (transport-layer dissection only); deep TLS inspection is a planned Stage 1 enhancement |
+| ping (ICMP) | ICMP counts + flows | health checks |
+| ARP discovery | ARP counts | automatic on the segment |
+
+Offline analysis: tcpdump (added in a later module) can write PCAPs on the
+server for `--read-pcap` — these same PCAPs become evidence for Stage 8.
+
+### Why this design holds up
+
+Because capture is passive and the address plan is fixed (`10.10.10.10` server,
+`10.10.10.20` Kali, `10.10.10.30` analyzer), Stage 1's BPF filters and report
+patterns stay stable across all later modules.
 
 ## 6. Adding VMs later
 

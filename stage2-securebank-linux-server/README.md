@@ -84,6 +84,9 @@ ssh securebank-admin@<server-ip>
 
 # 4. Verify the module on the server
 ./tests/module1-verify.sh
+
+# 5. Optional, once Stage 1 is ready: generate the traffic it analyzes
+./scripts/generate-lab-traffic.sh   # see docs/network-design.md §5
 ```
 
 ## Lab security notice
