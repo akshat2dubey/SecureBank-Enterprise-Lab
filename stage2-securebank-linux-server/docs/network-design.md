@@ -29,7 +29,8 @@ IP configuration itself is applied in Module 2.
 | Stage 1 analyzer | `traffic-analyzer.securebank.lab` | 10.10.10.30 | passive traffic capture |
 
 The `securebank.lab` domain exists **only** in the lab's `/etc/hosts` files
-(`configs/etc/hosts`). It must never be registered in public DNS.
+(managed block generated from `lab.env` at the repo root by
+`scripts/setup.sh`). It must never be registered in public DNS.
 
 ## 3. Port plan
 
@@ -45,9 +46,25 @@ before the services exist.
 
 ## 4. DNS strategy
 
-- **Now:** `/etc/hosts` on every lab VM, sourced from `configs/etc/hosts` (one source of truth).
+- **Now:** `/etc/hosts` on every lab VM, generated from `lab.env` at the repo
+  root (one source of truth — see `INTEGRATION.md` §1). `setup.sh` manages the
+  block between `# BEGIN/END securebank.lab` markers and replaces it on every
+  run, so stale entries can't survive a re-run (T-05).
 - **Later (optional):** dnsmasq or BIND on the server for real DNS. Names chosen
   now remain valid, so adding DNS later is non-breaking.
+
+## 4b. IPv6 posture (T-07)
+
+IPv6 stays **enabled** on the lab NICs and is filtered by the same default-deny
+firewall as IPv4 (`configs/etc/nftables.conf` uses an `inet` table that covers
+both families; SSH is allowed from the lab subnet over IPv4 and from
+link-local `fe80::/10` over IPv6). Nothing is v4-only by accident, and Stages
+5–7 must scan/test both families. Do not switch to "disable IPv6" without
+updating the firewall and this doc together.
+
+The ULA block `fd00:10:10::/48` (`SB_IPV6_ULA` in `lab.env`) is reserved for
+Module 2's static IPv6 config — assign `fd00:10:10::10`/`::20`/`::30` to
+server/Kali/analyzer so the v6 address plan mirrors the v4 one.
 
 ## 5. Stage 1 observation points
 
@@ -78,12 +95,18 @@ sudo python3 network_traffic_analyzer.py --interface <iface> --timeout 60 --top 
 sudo python3 network_traffic_analyzer.py --interface <iface> --bpf "tcp port 22" --timeout 60
 ```
 
-### Traffic the server generates (`scripts/generate-lab-traffic.sh`)
+### Traffic the lab generates (`scripts/generate-lab-traffic.sh`)
 
-| Stage 2 activity | Analyzer report | Note |
+**Run it on Kali (client mode) — the default when the local hostname is not
+the server.** Traffic only crosses the host-only segment when it travels
+*between two hosts*; the server talking to itself is invisible to the analyzer
+VM. The script auto-detects client vs self mode (`SB_TRAFFIC_MODE=client|self`
+overrides).
+
+| Activity | Analyzer report | Note |
 |---|---|---|
-| SSH connections (22) | TCP flows + TCP flags; `auth.log` entries | every admin login |
-| DNS lookups (53) | UDP flows | queries leave via the NAT resolver by default; to see them on the host-only segment, add dnsmasq on the server (Module 2/3) and use `dig @10.10.10.10` |
+| SSH connections (22) | TCP flows + TCP flags; `auth.log` entries | client mode: Kali → server, a real cross-segment login |
+| DNS lookups (53) | UDP flows | NAT resolver queries are invisible to the analyzer; `dig @10.10.10.10` from the client crosses the segment (refused until dnsmasq exists, still visible traffic) |
 | HTTP/HTTPS (80/443) | TCP flows + TCP flags | the analyzer reports TLS as TCP (transport-layer dissection only); deep TLS inspection is a planned Stage 1 enhancement |
 | ping (ICMP) | ICMP counts + flows | health checks |
 | ARP discovery | ARP counts | automatic on the segment |
@@ -103,5 +126,6 @@ Follow the same conventions so the ecosystem stays coherent:
 
 1. One host per role, FQDN `<role>.securebank.lab`.
 2. Next free IP in `10.10.10.0/24`.
-3. One line added to `configs/etc/hosts`, then re-run `scripts/setup.sh` on each
-   VM (hosts merge is idempotent).
+3. Add the host to `lab.env` at the repo root, then re-run `scripts/setup.sh`
+   on each VM — the managed `/etc/hosts` block is regenerated idempotently
+   (T-05).

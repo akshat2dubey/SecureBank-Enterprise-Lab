@@ -41,7 +41,7 @@ hosts without renaming anything.
 | Foundation | OS, users, groups, packages, SSH | Module 1 ✅ |
 | Network identity | static IP, interfaces, /etc/hosts, DNS strategy | Module 2 |
 | Services | sshd today; web / app / DB reserved | Module 3 |
-| Hardening | SSH hardening, firewall, least privilege, updates | Module 4 |
+| Hardening | Baseline applied Module 1 (default-deny firewall, sysctl, banner, NTP, SSH allow-list); full hardening (key-only SSH, fail2ban, updates policy) | Module 4 |
 | Telemetry | auth/SSH/system/service/firewall logs + retention | Module 5 |
 
 ## 4. Reserved integration points (Stages 3–9)
@@ -79,7 +79,7 @@ the lab — not the internet. See [security-hardening.md](security-hardening.md)
 
 | # | Module | Focus | Status |
 |---|--------|-------|--------|
-| 1 | Server Foundation | VM, OS, users, groups, packages, SSH | ✅ Done |
+| 1 | Server Foundation | VM, OS, users, groups, packages, SSH, baseline hardening (firewall, sysctl, banner, NTP) | ✅ Done |
 | 2 | Network Configuration | static IP, interfaces, DNS, routing, ports | 🔜 Next |
 | 3 | Services & Application Infrastructure | minimal banking services | ⏳ Planned |
 | 4 | Server Hardening | SSH hardening, firewall, least privilege, updates | ⏳ Planned |

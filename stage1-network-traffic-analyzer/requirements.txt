@@ -1,0 +1,2 @@
+scapy
+pytest  # test-only: python -m pytest tests/ -q

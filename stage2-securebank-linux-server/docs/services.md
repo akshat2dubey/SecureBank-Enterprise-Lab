@@ -4,6 +4,12 @@ Only services SecureBank actually needs. Every entry records: **service, port,
 purpose, security notes, logs**. This table is the input to the Stage 3 threat
 model and the target list for Stage 5/6.
 
+> **Module 3 definition of done (T-18):** no service is installed until its row
+> is complete here — service, port, bind address, dedicated user, threat
+> addressed, verification — with a matching control in
+> `docs/security-hardening.md`. "Document before install" is a hard gate, not
+> a style preference.
+
 ## Installed
 
 | Service | Port | Purpose | Security notes | Logs |
@@ -16,7 +22,7 @@ model and the target list for Stage 5/6.
 |---|---|---|---|
 | nginx | 80/443 | Web front for the VulnBank app (Stage 4) | Separate vhost + dedicated app user, no root |
 | MariaDB / PostgreSQL | 3306 / 5432 | SecureBank application database | Bind to lab interface only; app-scoped DB user |
-| dnsmasq / BIND (optional) | 53 | Lab DNS | Only if a real DNS server is wanted; names already fixed in `configs/etc/hosts` |
+| dnsmasq / BIND (optional) | 53 | Lab DNS | Only if a real DNS server is wanted; names already fixed in `lab.env` at the repo root (single source of truth) |
 | Log forwarder | 514/udp or 10514/tcp | Feed for the Stage 7 SIEM | Decided **with** Stage 7 — not locked in now |
 
 Nothing is installed before it is documented here (minimalism principle).

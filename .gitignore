@@ -3,6 +3,12 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Local tool state (never commit session databases)
+.freebuff/
+
+# SecureBank runtime logs (VM evidence, setup logs, forensics snapshots)
+stage2-securebank-linux-server/logs/
+
 # C extensions
 *.so
 

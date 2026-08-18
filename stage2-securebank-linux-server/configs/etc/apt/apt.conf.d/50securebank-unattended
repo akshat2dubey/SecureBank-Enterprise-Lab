@@ -1,0 +1,22 @@
+// SecureBank patch management — managed by scripts/setup.sh (C-13).
+// Security-only automatic updates. "Starts patched" must not mean
+// "stays unpatched": this keeps the box current against security fixes
+// without surprise feature upgrades or reboots.
+// Deliberately conservative for a training lab:
+//   - security updates only (no -updates, no backports, no proposed)
+//   - automatic reboot DISABLED — the admin reboots on their schedule
+//   - every action is logged to journald/syslog, visible to Stage 7/8
+
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Download-Upgradeable-Packages "1";
+APT::Periodic::Unattended-Upgrade "1";
+APT::Periodic::AutocleanInterval "7";
+
+Unattended-Upgrade::Automatic-Reboot "false";
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+
+// Security origins only — ${distro_id} expands to Debian or Ubuntu.
+Unattended-Upgrade::Allowed-Origins {
+    "${distro_id}:${distro_codename}-security";
+};
