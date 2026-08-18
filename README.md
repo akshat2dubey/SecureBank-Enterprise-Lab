@@ -1,5 +1,36 @@
 # SecureBank Enterprise Lab
-SecureBank Enterprise Lab is an end-to-end cybersecurity simulation of a modern banking environment. It integrates networking, Linux hardening, application security, threat modeling, penetration testing, SIEM, incident response, and DevSecOps into a single enterprise-scale project.
+
+> **One interconnected cybersecurity ecosystem, not nine mini-projects.** A
+> simulated modern banking environment where every stage consumes, monitors,
+> tests, or protects another: traffic analysis → hardened Linux infrastructure
+> → threat modeling → vulnerable banking app → reconnaissance → authorized
+> penetration testing → SIEM → incident response → DevSecOps.
+
+**Status:** ✅ Stages 1–2 complete & verified · **Glue:** `lab.env` +
+`INTEGRATION.md` make the stages one ecosystem · **Style:** idempotent Bash +
+Python, documentation-first, verify-the-effective-state testing · **Reports:**
+human-readable completion reports in [`reports/`](reports/)
+
+---
+
+### 🌐 GitHub repository settings (paste-ready)
+
+**Description** (Settings → About → Description):
+
+```text
+SecureBank Enterprise Lab — one interconnected cybersecurity ecosystem simulating a modern banking environment. Nine stages (traffic analysis, hardened Linux server, threat modeling, vulnerable app, reconnaissance, pentesting, SIEM, incident response, DevSecOps) consume, monitor, test, and protect each other, bound by a single integration contract. Build it stage by stage.
+```
+
+**Topics** (Settings → About → Topics, up to 20):
+
+```text
+cybersecurity  security-engineering  blue-team  red-team  penetration-testing
+ethical-hacking  threat-modeling  siem  incident-response  devsecops
+linux-hardening  network-security  network-analysis  scapy  python  bash
+osint  security-automation
+```
+
+---
 
 ## 📖 Overview
 
