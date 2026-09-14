@@ -1,0 +1,28 @@
+# SecureBank lab NIC — static lab addressing (Module 2, C-16)
+# -------------------------------------------------------------
+# Rendered by scripts/setup.sh from lab.env at the repo root (single source
+# of truth) — placeholders: @SB_LAB_IFACE@ @SB_SRV_IP@ @SB_LAB_SUBNET@
+# @SB_SRV_IPV6@ @SB_IPV6_LAB_SUBNET@. Installed at /etc/netplan/99-securebank.yaml
+# (0600 — netplan refuses world-readable files). The NAT NIC is NOT listed
+# here, so it keeps its existing configuration (DHCP, updates only — see
+# docs/network-design.md §1).
+#
+# Idempotent: re-running setup re-renders this file identically. Never
+# hand-edit the copy on the box; change lab.env and re-run setup.
+
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    securebank-lab:
+      match:
+        name: "@SB_LAB_IFACE@"
+      set-name: false
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      addresses:
+        - "@SB_SRV_IP@/@SB_LAB_PREFIX@"
+        - "@SB_SRV_IPV6@/@SB_IPV6_PREFIX@"
+      nameservers: {}
+      routes: []

@@ -33,22 +33,30 @@ TREE = """SecureBank-Enterprise-Lab/
 │   ├── SecureBank-Stage2-Completion-Report.{md,docx,html}
 │   ├── build_reports.py               # markdown -> docx/html generator
 │   └── build_handoff.py               # this generator
+├── stage3-securebank-threat-model/
+│   ├── README.md                  # mission, inputs/outputs, status
+│   └── docs/                      # methodology, asset-inventory,
+│                                 # trust-boundaries, data-flow-diagram,
+│                                 # risk-register (STRIDE, consumes C-01..C-15)
 ├── stage1-network-traffic-analyzer/
 │   ├── Project/outputs/network_traffic_analyzer.py   # the analyzer
 │   ├── Project/outputs/detections.py                 # heuristic rules
 │   ├── Project/outputs/README.md                     # usage + scope boundary
 │   ├── Project/outputs/CODE_EXPLANATION.md           # learning walkthrough
-│   ├── tests/test_analyzer.py                        # 18-test pytest suite
+│   ├── tests/test_analyzer.py                        # 25-test pytest suite
+│   ├── Project/outputs/validate_report.py            # schema validator (Stage 7 ingestion gate)
 │   ├── tests/integration_test.sh                     # Stage1 <-> Stage2 proof
 │   └── requirements.txt
 └── stage2-securebank-linux-server/
-    ├── scripts/setup.sh              # idempotent foundation + hardening
+    ├── scripts/setup.sh              # idempotent foundation + hardening + Module 2 static addressing
     ├── scripts/generate-lab-traffic.sh
     ├── scripts/collect-forensics.sh
-    ├── tests/module1-verify.sh       # ~60 checks of effective state
-    ├── configs/etc/                  # sshd, nftables, sysctl, issue, apt, journald
-    ├── docs/                         # architecture, network-design,
-    │                                 # security-hardening (C-01..C-15),
+    ├── scripts/render-peer-configs.sh # renders Kali/analyzer snippets from lab.env
+    ├── tests/module1-verify.sh       # ~75 checks of effective state (Modules 1+2)
+    ├── configs/etc/                  # sshd, nftables, sysctl, issue, apt, journald, netplan, networkd
+    ├── configs/other-vms/            # peer-VM snippet templates (@VAR@ placeholders)
+    ├── docs/                         # architecture, network-design (§7 Module 2),
+    │                                 # security-hardening (C-01..C-16),
     │                                 # security-review, services, host-auditing
     └── logs/                         # runtime logs (git-ignored)
 """
@@ -75,9 +83,13 @@ like ONE security ecosystem, never nine unrelated mini-projects. The two glue
 files at the root — `lab.env` and `INTEGRATION.md` — are what make it one
 ecosystem.
 
-**Current status:** Stages 1 and 2 are COMPLETE and verified. Everything else
-is planned. The `reports/` directory holds human-readable completion reports
-(Markdown + Word + HTML) for both finished stages.
+**Current status:** Stage 1 (analyzer) foundation complete and tested (report
+schema 1.1 + validator). Stage 2 foundation complete (Module 1) with Module 2
+(static lab addressing) code complete — verify on the VM; Modules 2–8 planned.
+Stage 3 has a threat-model skeleton (asset inventory, trust boundaries, DFD,
+STRIDE risk register consuming the C-01…C-16 controls). Everything else is
+planned. The `reports/` directory holds human-readable completion reports
+(Markdown + Word + HTML) for the finished stages.
 
 ---
 

@@ -20,9 +20,13 @@ like ONE security ecosystem, never nine unrelated mini-projects. The two glue
 files at the root — `lab.env` and `INTEGRATION.md` — are what make it one
 ecosystem.
 
-**Current status:** Stages 1 and 2 are COMPLETE and verified. Everything else
-is planned. The `reports/` directory holds human-readable completion reports
-(Markdown + Word + HTML) for both finished stages.
+**Current status:** Stage 1 (analyzer) foundation complete and tested (report
+schema 1.1 + validator). Stage 2 foundation complete (Module 1) with Module 2
+(static lab addressing) code complete — verify on the VM; Modules 2–8 planned.
+Stage 3 has a threat-model skeleton (asset inventory, trust boundaries, DFD,
+STRIDE risk register consuming the C-01…C-16 controls). Everything else is
+planned. The `reports/` directory holds human-readable completion reports
+(Markdown + Word + HTML) for the finished stages.
 
 ---
 
@@ -40,22 +44,30 @@ SecureBank-Enterprise-Lab/
 │   ├── SecureBank-Stage2-Completion-Report.{md,docx,html}
 │   ├── build_reports.py               # markdown -> docx/html generator
 │   └── build_handoff.py               # this generator
+├── stage3-securebank-threat-model/
+│   ├── README.md                  # mission, inputs/outputs, status
+│   └── docs/                      # methodology, asset-inventory,
+│                                 # trust-boundaries, data-flow-diagram,
+│                                 # risk-register (STRIDE, consumes C-01..C-15)
 ├── stage1-network-traffic-analyzer/
 │   ├── Project/outputs/network_traffic_analyzer.py   # the analyzer
 │   ├── Project/outputs/detections.py                 # heuristic rules
 │   ├── Project/outputs/README.md                     # usage + scope boundary
 │   ├── Project/outputs/CODE_EXPLANATION.md           # learning walkthrough
-│   ├── tests/test_analyzer.py                        # 18-test pytest suite
+│   ├── tests/test_analyzer.py                        # 25-test pytest suite
+│   ├── Project/outputs/validate_report.py            # schema validator (Stage 7 ingestion gate)
 │   ├── tests/integration_test.sh                     # Stage1 <-> Stage2 proof
 │   └── requirements.txt
 └── stage2-securebank-linux-server/
-    ├── scripts/setup.sh              # idempotent foundation + hardening
+    ├── scripts/setup.sh              # idempotent foundation + hardening + Module 2 static addressing
     ├── scripts/generate-lab-traffic.sh
     ├── scripts/collect-forensics.sh
-    ├── tests/module1-verify.sh       # ~60 checks of effective state
-    ├── configs/etc/                  # sshd, nftables, sysctl, issue, apt, journald
-    ├── docs/                         # architecture, network-design,
-    │                                 # security-hardening (C-01..C-15),
+    ├── scripts/render-peer-configs.sh # renders Kali/analyzer snippets from lab.env
+    ├── tests/module1-verify.sh       # ~75 checks of effective state (Modules 1+2)
+    ├── configs/etc/                  # sshd, nftables, sysctl, issue, apt, journald, netplan, networkd
+    ├── configs/other-vms/            # peer-VM snippet templates (@VAR@ placeholders)
+    ├── docs/                         # architecture, network-design (§7 Module 2),
+    │                                 # security-hardening (C-01..C-16),
     │                                 # security-review, services, host-auditing
     └── logs/                         # runtime logs (git-ignored)
 ```
@@ -92,16 +104,38 @@ in the same commit** — a stage that violates the contract breaks the lab.
 | Lab subnet | — | 10.10.10.0/24 | host-only lab segment |
 
 **IPv6:** stays enabled and filtered (T-07) by the Stage 2 nftables `inet`
-table. ULA block `fd00:10:10::/48` is reserved for Module 2's static config;
-link-local `fe80::/10` SSH is already allowed. Stages 5–7 must scan/test both
-families.
+table. Module 2 assigned the first /64 of the reserved ULA block statically
+(`SB_IPV6_LAB_SUBNET` = `fd00:10:10::/64`): server `fd00:10:10::10`, Kali
+`fd00:10:10::20`, analyzer `fd00:10:10::30` — per-host values live in
+`lab.env`. The server's address is applied by Stage 2 `setup.sh` (netplan or
+systemd-networkd); peer VMs apply the snippets rendered by Stage 2's
+`scripts/render-peer-configs.sh`. Link-local `fe80::/10` SSH is already
+allowed. Stages 5–7 must scan/test both families.
+
+**Sensor visibility (Stage 1):** promiscuous mode alone does **not** guarantee
+that the analyzer sees unicast traffic between Kali and the server — virtual
+switches learn MAC→port and forward unicast only to the destination port.
+The lab therefore defines ONE supported observation mechanism, configured
+deliberately:
+
+- **Preferred:** hypervisor port mirroring / promiscuous forwarding for the
+  lab segment (VMware: port-group *Promiscuous Mode: Accept*; Proxmox: bridge
+  mirror; libvirt: bridged forwarding). VirtualBox host-only offers none —
+  use the fallback there.
+- **Fallback:** capture on the **server itself** (tcpdump → `--read-pcap`, or
+  the analyzer run on the server's lab NIC). This is then a **host-based
+  sensor**, not a passive network sensor, and evidence must say so.
+- **Acceptance:** Stage 1's integration test passes only if the report shows
+  the known **Kali ↔ server SSH flow AND an HTTP (80/443) flow**. An
+  ARP/broadcast-only capture is a visibility FAILURE (misconfigured
+  mirroring), never "a quiet network".
 
 ## 3. Port reservations
 
 | Port | Protocol | Service | Stage |
 |---|---|---|---|
 | 22 | TCP | SSH (server) | 2, 5, 6 |
-| 53 | UDP | dnsmasq/BIND on the server (optional) | 1, 2, 3 |
+| 53 | UDP | dnsmasq/BIND on the server — RESERVED, **no DNS service deployed** | 1, 2, 3 |
 | 80, 443 | TCP | web — nginx + VulnBank app | 4, 6, 7 |
 | 3306 or 5432 | TCP | database (MariaDB / PostgreSQL) | 4 |
 | 514 (UDP) or 10514 (TCP) | syslog | log forwarding to the Stage 7 SIEM | 5, 7 |
@@ -109,6 +143,12 @@ families.
 Ports are reserved before the services exist so Stage 1 filters and Stage 5/6
 scans can rely on them. Nothing binds a reserved port without updating this
 table.
+
+**Until a DNS service is deliberately deployed**, the traffic generator's
+`dig @${SB_SRV_IP}` step is a **closed-port probe** — the server answers ICMP
+port-unreachable. It is useful synthetic UDP/53 traffic for Stage 1, but it
+is **not legitimate DNS**; label it as a probe in reports and evidence. Real
+DNS arrives only with a documented dnsmasq/BIND deployment (Module 3+).
 
 ## 4. Time convention
 
@@ -126,6 +166,16 @@ table.
   Module 1 — `Storage=persistent`, C-15); forward them via **syslog, RFC 5424**
   on port 514 (UDP) or 10514 (TCP) to the Stage 7 SIEM. No stage picks a SIEM
   agent or a proprietary format before this section is updated.
+- **Integrity target (Stage 7 gate):** incident-grade evidence requires
+  **TCP/10514 with authenticated encryption** (TLS with mutual authentication,
+  RFC 5425-style) as the design goal. **UDP/514 is unacknowledged and
+  unauthenticated** — acceptable for development visibility, never the sole
+  transport for trustworthy incident evidence on a shared segment. Module 5
+  picks the concrete mechanism here before anything ships.
+- **Machine-readable seam:** Stage 7 consumes the Stage 1 **JSON schema (§6)
+  via `validate_report.py`** — it validates structured fields; it never
+  regex-parses the human summary or flat strings. Host logs are consumed as
+  structured journald/syslog records, not prose.
 - The syslog `HOSTNAME` field must be the FQDN (`securebank-srv.securebank.lab`).
 - Facilities: `auth`/`authpriv` for SSH, `daemon` for services, `cron` for
   scheduled jobs.
@@ -137,9 +187,10 @@ table.
 ## 6. Stage 1 traffic report schema (implemented, v1.0)
 
 The analyzer emits `traffic_report.json` / `report.json` with:
-`schema_version` ("traffic-report/1.0"), `generated_at` (UTC ISO-8601),
-`packets`, `bytes`, `malformed_packets`, `protocols`, `top_sources`,
-`top_destinations`, `top_flows`, `tcp_flags`, `detections`.
+`schema_version` ("traffic-report/1.1"), `report_id`, `generated_at` (UTC
+ISO-8601), `sensor`, `capture_start`, `capture_end`, `packets`, `bytes`,
+`malformed_packets`, `protocols`, `top_sources`, `top_destinations`,
+`top_flows`, `tcp_flags`, `detections`.
 
 - **`top_flows` entries are structured objects** — `{proto, src, src_port, dst,
   dst_port, count}` — never flat strings; SIEM consumers must not regex-parse
@@ -150,6 +201,15 @@ The analyzer emits `traffic_report.json` / `report.json` with:
   an empty array means "nothing tripped a threshold".
 - **`malformed_packets`** counts packets that could not be parsed; the analyzer
   never crashes on them.
+- **`report_id`** (1.1) is a stable unique ID — `sb-tr-<UTCstamp>-<8hex>` —
+  for SIEM correlation and de-duplication of repeated polls.
+- **`sensor`** (1.1) names the capturing host; **`capture_start`/`capture_end`**
+  (1.1) bound the capture window (first/last packet seen, UTC ISO-8601; `null`
+  when zero packets were seen — PCAP replay reports the ORIGINAL window, not
+  the replay wall-clock). Stage 7 joins these against log timelines.
+- **Every report must pass `Project/outputs/validate_report.py`** (the Stage 7
+  ingestion gate; accepts 1.0 and 1.1) before it is ingested. The pytest suite
+  and the integration test enforce this on every run.
 - Backward compatibility rule: a field may be *added*, never removed or
   re-purposed; any semantic change bumps `schema_version` and this section.
 - Reports land in `stage1-network-traffic-analyzer/Project/outputs/*.json`
@@ -164,6 +224,7 @@ The analyzer emits `traffic_report.json` / `report.json` with:
 | Version | Change | Reason | Impact |
 |---|---|---|---|
 | 1.0 | `schema_version`, structured `top_flows`, `malformed_packets`, `detections` added | SIEM-ready fields; flat flow strings were parsing-hostile | Consumers must read structured flows; older flat-string reports predate the contract |
+| 1.1 | Additive: `report_id`, `sensor`, `capture_start`/`capture_end`; `validate_report.py` ingestion gate | Stage 7 correlation needs capture windows + sensor identity; SIEM must never ingest unvalidated reports | 1.0 reports stay valid; 1.1 consumers must tolerate `null` windows on empty captures |
 
 ## 7. Artifact and naming conventions
 
@@ -207,6 +268,12 @@ The analyzer emits `traffic_report.json` / `report.json` with:
 | Module 1 | 2 | AppArmor enforced/verified where the platform ships it (C-14); auditd, Fail2Ban, AIDE deferred | MAC deliberate, not decorative; deferrals have triggers | Verify suite checks MAC state; see docs/host-auditing.md |
 | Module 1 | 1 | Analyzer v1.0 report + pytest suite + `detections.py` | SIEM-ready schema, tests, heuristic detections | See §6; integration test proves Stage 1 observes Stage 2 traffic |
 | Module 1 | 1 | Integration test `tests/integration_test.sh` | Formal Stage 1 ↔ Stage 2 proof | Evidence in `stage1/.../reports/integration-*/` |
+| Module 1 | 3 | Threat-model skeleton (asset inventory A-01…A-22, trust boundaries TB-1…TB-9, STRIDE register R-01…R-13 consuming C-01…C-15) | "Understand before you build": feeds Stages 4–8 | Risk register is the input to Stage 4/6/7/8 planning |
+| Module 2 | 2 | Static lab addressing: `SB_IPV6_LAB_SUBNET` + per-host ULA vars in `lab.env`; server applies `10.10.10.10/24` + `fd00:10:10::10/64` via netplan/systemd-networkd (C-16); peer snippets rendered by `render-peer-configs.sh` | Stable identity is the dependency of Stages 1, 5, 6, 7 | New `lab.env` keys are additive; consumers may treat ULA as optional until peers apply theirs |
+| Review | 1 | Sensor-visibility contract formalized (§2): hypervisor mirroring preferred, host-based capture fallback; integration test requires cross-host SSH + HTTP flows, ARP-only = FAIL | Promiscuous mode ≠ unicast visibility on virtual switches | Hypervisor mirroring becomes a documented prerequisite; acceptance is testable |
+| Review | 2 | Firewall self-lockout guard now validates the SSH **remote peer** (IPv4+IPv6, fail-closed); server-side SSH key generation removed — Kali is the sole key origin | The guard read the local socket side (a real lockout-safety defect); a self-authorized server key has no legitimate use | Re-run `setup.sh` on the VM; delete any pre-existing server-side key manually |
+| Review | 1 | Report schema 1.0 → 1.1 (additive): `report_id`, `sensor`, `capture_start`/`capture_end`; `validate_report.py` ingestion gate | Stage 7 needs capture windows, sensor identity, and validated reports | 1.0 reports remain valid; Stage 7 accepts both versions |
+| Review | 2 | Logical planes (management/application/database/monitoring) documented (Stage 2 network-design §8) | Plane separation designed before services exist (one VM today) | Module 3/4 firewall + binding rules implement it; DB never exposes 3306/5432 to the segment by default |
 ```
 
 ## 3. lab.env — the single source of truth (full text)
@@ -216,12 +283,15 @@ The analyzer emits `traffic_report.json` / `report.json` with:
 # Lives at the REPO ROOT (SecureBank-Enterprise-Lab/lab.env) so every stage
 # consumes the same values — see INTEGRATION.md (section 1) at the repo root.
 # Sourced by Stage 2: scripts/setup.sh, scripts/generate-lab-traffic.sh,
-#                     scripts/collect-forensics.sh, tests/module1-verify.sh
+#                     scripts/collect-forensics.sh, tests/module1-verify.sh,
+#                     scripts/render-peer-configs.sh
 #
 # These values feed:
 #   - the managed /etc/hosts block (generated by setup.sh, BEGIN/END markers)
 #   - the sshd AllowUsers line (rendered by setup.sh into the drop-in)
 #   - the nftables lab-subnet rule (rendered by setup.sh into nftables.conf)
+#   - the static lab-NIC config (rendered by setup.sh into netplan YAML or a
+#     systemd-networkd .network file) and the peer VM snippets
 #
 # No secrets here. Credentials never belong in this repo — the admin
 # password is set interactively on the VM with `passwd` (T-13).
@@ -236,9 +306,16 @@ SB_SRV_IP="${SB_SRV_IP:-10.10.10.10}"
 SB_KALI_IP="${SB_KALI_IP:-10.10.10.20}"
 SB_ANALYZER_IP="${SB_ANALYZER_IP:-10.10.10.30}"
 
-# IPv6: stays ENABLED and filtered (T-07). ULA block reserved for Module 2's
-# static config; link-local (fe80::/10) SSH is already allowed by the firewall.
+# IPv6: stays ENABLED and filtered (T-07). The ULA /48 is reserved for the
+# lab; Module 2 assigns the first /64 statically so the v6 address plan
+# mirrors the v4 one (docs/network-design.md §4b). Link-local (fe80::/10)
+# SSH was already allowed by the firewall in Module 1.
 SB_IPV6_ULA="${SB_IPV6_ULA:-fd00:10:10::/48}"
+SB_IPV6_LAB_SUBNET="${SB_IPV6_LAB_SUBNET:-fd00:10:10::/64}"   # first /64 of the ULA — the lab segment
+
+SB_SRV_IPV6="${SB_SRV_IPV6:-fd00:10:10::10}"
+SB_KALI_IPV6="${SB_KALI_IPV6:-fd00:10:10::20}"
+SB_ANALYZER_IPV6="${SB_ANALYZER_IPV6:-fd00:10:10::30}"
 
 SB_DOMAIN="${SB_DOMAIN:-securebank.lab}"
 SB_HOSTNAME="${SB_HOSTNAME:-securebank-srv}"
@@ -271,8 +348,10 @@ The analyzer is **metadata-only by design** — it never stores or inspects pack
 payloads. It is a lab-scale, explainable tool, deliberately not a Zeek/Suricata
 replacement (a documented scope boundary, not a defect).
 
-The stage is verified: a 18-test unit suite, a formal integration test that
-proves **Stage 1 can observe traffic generated by Stage 2**, and a machine-output
+The stage is verified: a 25-test unit suite (including a schema validator for
+the SIEM ingestion gate), a formal integration test that proves **Stage 1 can
+observe traffic generated by Stage 2** (with a visibility acceptance check:
+cross-host SSH + HTTP flows, not just ARP/broadcast), and a machine-output
 mode (`--json-only`) that gives the future Stage 7 SIEM a clean ingestion seam.
 
 ## 2. Mission in the ecosystem
@@ -300,15 +379,18 @@ mode (`--json-only`) that gives the future Stage 7 SIEM a clean ingestion seam.
 | Output | human summary (terminal) + schema-versioned JSON |
 | Machine mode | `--json-only`: stdout stays parseable; status goes to stderr |
 
-## 4. Report schema (`traffic-report/1.0`)
+## 4. Report schema (`traffic-report/1.1`, additive from 1.0)
 
 Defined and versioned in `INTEGRATION.md` §6. SIEM consumers key on
 `schema_version`; fields may only be *added*, never removed or re-purposed.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `schema_version` | string | `"traffic-report/1.0"` — bump on any semantic change |
+| `schema_version` | string | `"traffic-report/1.1"` — bump on any semantic change |
+| `report_id` | string | stable unique ID `sb-tr-<UTCstamp>-<8hex>` — SIEM correlation + de-duplication |
 | `generated_at` | string | UTC, ISO-8601 with offset (e.g. `2026-08-09T04:56:31.670573+00:00`) |
+| `sensor` | string | hostname of the capturing sensor (`--sensor` overrides) |
+| `capture_start` / `capture_end` | string \| null | first/last packet seen (UTC ISO-8601); `null` on an empty capture; PCAP replay reports the original window |
 | `packets` | int | total packets processed |
 | `bytes` | int | total bytes observed |
 | `malformed_packets` | int | packets skipped due to parse failure |
@@ -318,6 +400,10 @@ Defined and versioned in `INTEGRATION.md` §6. SIEM consumers key on
 | `top_flows` | list | **structured** `{proto, src, src_port, dst, dst_port, count}` — never flat strings |
 | `tcp_flags` | dict | TCP flag combination → count |
 | `detections` | list | heuristic findings (see §5); empty = nothing tripped |
+
+**Ingestion gate:** every report must pass `Project/outputs/validate_report.py`
+(accepts 1.0 and 1.1) before Stage 7 consumes it — enforced by the unit suite
+and the integration test on every run.
 
 ## 5. Detection layer (`detections.py`)
 
@@ -348,19 +434,28 @@ Thresholds are overridable per run (`--syn-flood-min`, `--port-scan-min-ports`,
 | `--show-packets` | print Scapy one-line summaries (interactive only) |
 | `--json-out FILE` | write the JSON report (parent dirs auto-created) |
 | `--json-only` | machine mode: no human summary; JSON → stdout or `--json-out` |
+| `--sensor NAME` | sensor name recorded in the report (default: hostname) |
 | `--syn-flood-min N` | detection threshold override |
 | `--port-scan-min-ports N` | detection threshold override |
 | `--telnet-ports a,b` | detection threshold override |
 
 ## 7. Verification & testing
 
-**Unit suite** — `tests/test_analyzer.py` (18 pytest cases):
-empty capture, JSON round-trip validity, protocol classification (IPv4/IPv6,
-TCP/UDP/DNS/ICMP/ARP), structured flows, malformed-packet counting + pcap-loop
-survival, PCAP replay through `main()`, BPF argument validation, all three
-detection rules (+ thresholds configurable, + normal-traffic silence), and
-three `--json-only` contract tests (stdout is pure JSON; clean stdout with
-`--json-out`; `--show-packets` rejected).
+**Unit suite** — `tests/test_analyzer.py` (25 pytest cases):
+empty capture (schema + null capture window), JSON round-trip validity,
+protocol classification (IPv4/IPv6, TCP/UDP/DNS/ICMP/ARP), structured flows,
+malformed-packet counting + pcap-loop survival, PCAP replay through `main()`,
+BPF argument validation, all three detection rules (+ thresholds configurable,
++ normal-traffic silence), three `--json-only` contract tests (stdout is pure
+JSON; clean stdout with `--json-out`; `--show-packets` rejected), capture-window
+correlation metadata (sensor identity, `report_id` format/uniqueness, PCAP
+replay reporting the original window), and the schema validator (1.0/1.1
+acceptance, bad-field rejection, window sanity).
+
+**Schema validation** — `Project/outputs/validate_report.py` is the Stage 7
+ingestion gate: accepts 1.0 and 1.1 reports, rejects missing/mistyped fields,
+flat-string flows, bad timestamps, and invalid `report_id`s. The integration
+test runs it on every capture before evidence is stored.
 
 **Runtime verification during implementation:** 15/15 checks passed (schema,
 classification, malformed handling, full replay, detections, nested `--json-out`,
@@ -369,7 +464,11 @@ classification, malformed handling, full replay, detections, nested `--json-out`
 **Integration test** — `tests/integration_test.sh`:
 capture on the analyzer VM → trigger Stage 2 traffic generator on Kali →
 verify report contains TCP (SSH), ICMP, the server IP, and port-22 flows →
-store evidence under `reports/integration-<timestamp>/`.
+**visibility acceptance: the SSH flow must be the known cross-host session AND
+an HTTP (80/443) flow must appear — an ARP/broadcast-only capture is a visibility
+failure** (hypervisor mirroring misconfigured; see the visibility contract in
+the script header and INTEGRATION.md §2) → schema-validate the report → store
+evidence under `reports/integration-<timestamp>/`.
 
 ## 8. Files & deliverables
 
@@ -379,7 +478,7 @@ store evidence under `reports/integration-<timestamp>/`.
 | `Project/outputs/detections.py` | heuristic detection rules |
 | `Project/outputs/README.md` | usage, scope boundary, detections |
 | `Project/outputs/CODE_EXPLANATION.md` | line-by-line learning walkthrough |
-| `tests/test_analyzer.py` | 18-test pytest suite |
+| `tests/test_analyzer.py` | 25-test pytest suite |
 | `tests/integration_test.sh` | Stage 1 ↔ Stage 2 formal integration test |
 | `requirements.txt` | scapy (+ pytest for tests) |
 
@@ -415,7 +514,7 @@ sudo ./tests/integration_test.sh eth0        # on the analyzer VM, Kali + server
 |---|---|
 | Consume Stage 2/4/6 traffic in the SIEM pipeline | Stage 7 |
 | Time-windowed detection rules (rolling windows) | future enhancement |
-| Report validator (`consume_report.py`) as the Stage 7 ingestion gate | Stage 7 |
+| Report validator (`validate_report.py`) consumed as the Stage 7 ingestion gate | ✅ implemented — Stage 7 wires it into its poller |
 | Polling loop (cron-style `--json-only`) | Stage 7 |
 
 
@@ -424,7 +523,7 @@ sudo ./tests/integration_test.sh eth0        # on the analyzer VM, Kali + server
 # SecureBank Enterprise Lab — Stage 2 Completion Report
 
 **Stage:** 2 — SecureBank Linux Server
-**Status:** ✅ Module 1 complete (Server Foundation + baseline hardening)
+**Status:** ✅ Foundation complete (Module 1) — 🟡 Module 2 code complete, verify on the VM; Modules 2–8 planned
 **Date:** August 2026
 **Ecosystem:** one of nine interconnected stages (see `INTEGRATION.md` at the repo root)
 
@@ -493,7 +592,7 @@ automated suite that checks *effective runtime state*, not just file existence.
 | C-09 | sysctl network hardening | spoofing, redirect MITM, SYN floods |
 | C-10 | NTP enabled | clock drift corrupts evidence |
 | C-11 | Authorized-use banner | legal/authorized-use notice |
-| C-12 | Local ed25519 keypair (loopback; Kali key via ssh-copy-id) | Module 4 key-only switch is config-only |
+| C-12 | Admin SSH keys — Kali is the sole origin (no server-side keypair) | key-provenance muddying; Module 4 audit + Stage 8 investigations |
 | C-13 | Security-only automatic updates | known-vulnerability exploitation |
 | C-14 | AppArmor enforced where the platform ships it | compromised service escape |
 | C-15 | Persistent journal + firewall drop logging + forensics kit | no evidence to investigate incidents |
@@ -517,7 +616,10 @@ automated suite that checks *effective runtime state*, not just file existence.
 
 ## 6. Firewall policy (nftables, `inet` table — IPv4 + IPv6)
 
-Default deny inbound; outbound allowed (updates via NAT NIC); forward dropped.
+Default deny inbound; **outbound unrestricted — the documented current lab
+posture, not an "outbound-only updates" policy** (a deliberate egress
+allow-list arrives with later modules once required destinations are
+recorded); forward dropped.
 
 | Rule | Action |
 |---|---|
@@ -529,9 +631,12 @@ Default deny inbound; outbound allowed (updates via NAT NIC); forward dropped.
 | SSH from `10.10.10.0/24` (IPv4) and `fe80::/10` (link-local v6) | accept |
 | everything else inbound | **drop + log** `SB-DROP` (rate-limited 5/s burst 10) |
 
-**Self-lockout guard:** setup.sh reads the live SSH session's source address
-(`ss`) and aborts with a clear message before applying the firewall if it
-would cut the admin's own session (escape hatch: `SB_FIREWALL_SKIP=1`).
+**Self-lockout guard:** setup.sh validates the REMOTE PEER address of the
+live SSH session (IPv4 + IPv6, via `ss -tnpe`'s explicit endpoint fields —
+not the local socket side, which Module 2's static plan changes on purpose)
+and aborts before applying the firewall if the peer would be cut. It fails
+closed when a session is live but its peer cannot be determined
+(escape hatch: `SB_FIREWALL_SKIP=1`).
 
 ## 7. sysctl network-hardening baseline
 
@@ -595,15 +700,15 @@ snapshots to `logs/package-baseline-<stamp>.txt`.
   `passwd securebank-admin`; **never** committed to the repo.
 - **Locked out?** Use the VM console (not SSH): `sudo -i` then `passwd`.
 - **Kali access (key):** on Kali once — `ssh-keygen -t ed25519`, then
-  `ssh-copy-id securebank-admin@<server-ip>`. The server's own key is
-  loopback-only (traffic script).
+  `ssh-copy-id securebank-admin@<server-ip>`. The server generates no keys
+  of its own — Kali is the sole admin-key origin (C-12).
 - **Reboot after kernel upgrade** before continuing to Module 2.
 
 ## 12. Roadmap — what comes next for Stage 2
 
 | Module | Focus | Status |
 |---|---|---|
-| 2 | Network Configuration — static IPs, DNS, routing, IPv6 ULA | 🔜 Next |
+| 2 | Network Configuration — static IPs, DNS, routing, IPv6 ULA | 🟡 Code complete — verify on the VM |
 | 3 | Services & Application Infrastructure (minimal banking services) | ⏳ Planned |
 | 4 | Server Hardening — key-only SSH (flip both switches, T-15), firewall extension, AppArmor profiles | ⏳ Planned |
 | 5 | Logging & Telemetry — journald → syslog RFC 5424 to Stage 7 | ⏳ Planned |

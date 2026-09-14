@@ -9,6 +9,9 @@ __pycache__/
 # SecureBank runtime logs (VM evidence, setup logs, forensics snapshots)
 stage2-securebank-linux-server/logs/
 
+# SecureBank rendered peer configs (generated from lab.env; copy to the peer VMs)
+stage2-securebank-linux-server/outputs/
+
 # C extensions
 *.so
 

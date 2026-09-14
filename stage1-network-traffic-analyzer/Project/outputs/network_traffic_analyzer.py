@@ -17,7 +17,9 @@ from __future__ import annotations
 import argparse
 import json
 import signal
+import socket
 import sys
+import uuid
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -41,7 +43,21 @@ MAX_UNIQUE = 100_000
 
 # Schema version of the JSON report (see INTEGRATION.md section 6). Bump this
 # whenever a report field changes meaning — SIEM/IR consumers key on it.
-SCHEMA_VERSION = "traffic-report/1.0"
+# 1.0 -> 1.1 is ADDITIVE only: capture-window + sensor correlation metadata
+# (capture_start, capture_end, sensor, report_id) were added for Stage 7.
+SCHEMA_VERSION = "traffic-report/1.1"
+
+
+def _iso_utc(moment: datetime) -> str:
+    """Canonical UTC ISO-8601 with an explicit +00:00 offset (INTEGRATION.md §4).
+
+    Python 3.14+ renders UTC as 'Z' in isoformat(); normalize to the
+    contract's canonical form so every timestamp the analyzer emits — in
+    memory AND through json.dumps — is byte-identical across interpreter
+    versions, and capture_start/capture_end stay safe to compare as strings.
+    """
+    text = moment.astimezone(timezone.utc).isoformat()
+    return text[:-1] + "+00:00" if text.endswith("Z") else text
 
 
 def _ip_endpoints(packet: Packet) -> tuple[str, str]:
@@ -85,6 +101,14 @@ class TrafficAnalyzer:
     packet_count: int = 0
     byte_count: int = 0
     malformed_packets: int = 0
+    # Capture-window correlation metadata (schema 1.1, INTEGRATION.md §6):
+    # first/last packet seen, ISO-8601 UTC — None until a packet arrives, so
+    # an empty capture reports null rather than a fabricated window.
+    capture_start: str | None = None
+    capture_end: str | None = None
+    # Hostname of the capturing sensor (identifies WHERE a report came from
+    # when several sensors feed the Stage 7 SIEM). Overridable via --sensor.
+    sensor: str = field(default_factory=lambda: socket.gethostname())
     protocol_counts: Counter[str] = field(default_factory=Counter)
     source_counts: Counter[str] = field(default_factory=Counter)
     destination_counts: Counter[str] = field(default_factory=Counter)
@@ -109,6 +133,16 @@ class TrafficAnalyzer:
         except Exception:
             self.malformed_packets += 1
             return
+        # Capture window from packet timestamps (works for live capture AND
+        # PCAP replay — replay reports the ORIGINAL capture window, not the
+        # replay wall-clock). Fall back to now() for packets without a time.
+        try:
+            stamp = _iso_utc(datetime.fromtimestamp(float(packet.time), tz=timezone.utc))
+        except Exception:
+            stamp = _iso_utc(datetime.now(timezone.utc))
+        if self.capture_start is None:
+            self.capture_start = stamp
+        self.capture_end = stamp
         self.packet_count += 1
         self.byte_count += len(packet)
         self.protocol_counts[protocol] += 1
@@ -133,9 +167,18 @@ class TrafficAnalyzer:
         return [{"value": item, "count": count} for item, count in counter.most_common(limit)]
 
     def report(self, top_n: int) -> dict[str, Any]:
+        now = datetime.now(timezone.utc)
+        capture_start = None if self.capture_start is None else _iso_utc(datetime.fromisoformat(self.capture_start))
+        capture_end = None if self.capture_end is None else _iso_utc(datetime.fromisoformat(self.capture_end))
         return {
             "schema_version": SCHEMA_VERSION,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            # Stable unique ID for SIEM/IR correlation and de-duplication:
+            # generation second + random suffix (collision-safe for lab scale).
+            "report_id": f"sb-tr-{now.strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:8]}",
+            "generated_at": _iso_utc(now),
+            "sensor": self.sensor,
+            "capture_start": capture_start,
+            "capture_end": capture_end,
             "packets": self.packet_count,
             "bytes": self.byte_count,
             "malformed_packets": self.malformed_packets,
@@ -224,6 +267,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--show-packets", action="store_true", help="Print Scapy one-line packet summaries")
     parser.add_argument("--json-out", type=Path, help="Write metadata-only report as JSON")
     parser.add_argument(
+        "--sensor",
+        default=None,
+        help="Sensor name recorded in the report (default: this machine's hostname)",
+    )
+    parser.add_argument(
         "--json-only",
         action="store_true",
         help="Machine output for SIEM/cron: no human summary; JSON goes to --json-out or stdout (stdout stays clean)",
@@ -249,15 +297,8 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def main() -> int:
-    args = parse_args()
-    if SCAPY_IMPORT_ERROR is not None:
-        print(
-            "Error: Scapy is not installed. Install it with: python -m pip install scapy",
-            file=sys.stderr,
-        )
-        return 2
-
+def build_analyzer(args: argparse.Namespace) -> TrafficAnalyzer:
+    """Assemble the analyzer (detection thresholds + sensor name) from CLI args."""
     # Assemble the detection config from CLI overrides (defaults otherwise).
     kwargs: dict[str, Any] = {}
     if args.syn_flood_min is not None:
@@ -267,8 +308,21 @@ def main() -> int:
     if args.telnet_ports:
         kwargs["telnet_ports"] = tuple(int(p) for p in args.telnet_ports.split(","))
     config = DetectionConfig(**kwargs)
+    sensor = args.sensor if args.sensor else socket.gethostname()
+    return TrafficAnalyzer(detection_config=config, sensor=sensor)
 
-    analyzer = TrafficAnalyzer(detection_config=config)
+
+def main() -> int:
+    args = parse_args()
+    if SCAPY_IMPORT_ERROR is not None:
+        print(
+            "Error: Scapy is not installed. Install it with: python -m pip install scapy",
+            file=sys.stderr,
+        )
+        return 2
+
+    # Detection thresholds + sensor name come from the CLI (defaults otherwise).
+    analyzer = build_analyzer(args)
     process = partial(analyzer.process, show_packets=args.show_packets)
     try:
         if args.read_pcap:

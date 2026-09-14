@@ -1,0 +1,27 @@
+# SecureBank lab NIC — static lab addressing (Module 2, C-16)
+# -------------------------------------------------------------
+# Rendered by scripts/setup.sh from lab.env at the repo root (single source
+# of truth) — placeholders: @SB_LAB_IFACE@ @SB_SRV_IP@ @SB_LAB_PREFIX@
+# @SB_SRV_IPV6@ @SB_IPV6_PREFIX@. Installed at
+# /etc/systemd/network/10-securebank-lab.network and applied by
+# systemd-networkd. The NAT NIC is NOT matched by this file, so it keeps its
+# existing configuration (DHCP, updates only — see docs/network-design.md §1).
+#
+# Idempotent: re-running setup re-renders this file identically. Never
+# hand-edit the copy on the box; change lab.env and re-run setup.
+#
+# [Match] is the mechanism, not a rendered value: networkd binds this config
+# to whichever NIC setup.sh detected as the lab interface at run time.
+
+[Match]
+Name=@SB_LAB_IFACE@
+
+[Network]
+Description=SecureBank lab segment (host-only) — rendered from lab.env
+DHCP=no
+IPv6AcceptRA=no
+Address=@SB_SRV_IP@/@SB_LAB_PREFIX@
+Address=@SB_SRV_IPV6@/@SB_IPV6_PREFIX@
+
+[Link]
+RequiredForOnline=no

@@ -23,12 +23,17 @@ OUTPUTS = Path(__file__).resolve().parent.parent / "Project" / "outputs"
 sys.path.insert(0, str(OUTPUTS))
 
 import network_traffic_analyzer as nta  # noqa: E402
+import validate_report as vr  # noqa: E402
 from detections import DetectionConfig  # noqa: E402
 from scapy.all import ARP, DNS, DNSQR, Ether, ICMP, IP, IPv6, TCP, UDP, wrpcap  # noqa: E402
 
 REQUIRED_REPORT_KEYS = {
     "schema_version",
     "generated_at",
+    "report_id",          # additive since traffic-report/1.1
+    "sensor",             # additive since traffic-report/1.1
+    "capture_start",      # additive since traffic-report/1.1
+    "capture_end",        # additive since traffic-report/1.1
     "packets",
     "bytes",
     "malformed_packets",
@@ -47,6 +52,10 @@ def pkt_tcp(src="10.10.10.20", sport=50000, dst="10.10.10.10", dport=22, flags="
 
 def pkt_udp(src="10.10.10.20", sport=50000, dst="10.10.10.10", dport=53):
     return Ether() / IP(src=src, dst=dst) / UDP(sport=sport, dport=dport)
+
+
+def pkt_http(src="10.10.10.20", sport=50001, dst="10.10.10.10", dport=80):
+    return Ether() / IP(src=src, dst=dst) / TCP(sport=sport, dport=dport, flags="S")
 
 
 def pkt_icmp(src="10.10.10.20", dst="10.10.10.10"):
@@ -76,12 +85,54 @@ def run_main(monkeypatch, argv):
 def test_empty_capture_report_schema():
     report = nta.TrafficAnalyzer().report(top_n=10)
     assert set(report) >= REQUIRED_REPORT_KEYS
-    assert report["schema_version"] == "traffic-report/1.0"
+    assert report["schema_version"] == "traffic-report/1.1"
     assert report["packets"] == 0
     assert report["bytes"] == 0
     assert report["malformed_packets"] == 0
     assert report["detections"] == []
-    assert "Z" not in report["generated_at"].replace("+00:00", "Z")  # ISO-8601 with offset
+    # ISO-8601 with an explicit offset (INTEGRATION.md §4 canonical +00:00 form).
+    # (The old `"Z" not in ts.replace("+00:00", "Z")` could never pass — it
+    # manufactured the very "Z" it forbade.)
+    assert report["generated_at"].endswith("+00:00")
+
+
+def test_empty_capture_reports_null_window():
+    # No packet was seen -> the capture window is null, not a fabricated
+    # start==end pair around report time.
+    report = nta.TrafficAnalyzer().report(top_n=10)
+    assert report["capture_start"] is None
+    assert report["capture_end"] is None
+
+
+def test_capture_window_reflects_packet_timestamps():
+    # PCAP replay must report the ORIGINAL capture window, not the replay
+    # wall-clock (Stage 7 correlates capture windows against SIEM timelines).
+    from scapy.all import PcapWriter
+    analyzer = nta.TrafficAnalyzer()
+    p1, p2 = pkt_tcp(), pkt_tcp()
+    p1.time = 1_700_000_000.0
+    p2.time = 1_700_000_100.0
+    analyzer.process(p1)
+    analyzer.process(p2)
+    report = analyzer.report(top_n=5)
+    assert report["capture_start"].startswith("2023-11-14T22:13:20")
+    assert report["capture_end"].startswith("2023-11-14T22:15:00")
+    assert report["capture_start"] < report["capture_end"]
+
+
+def test_sensor_default_is_hostname_and_cli_override():
+    import socket
+    report = nta.TrafficAnalyzer().report(top_n=5)
+    assert report["sensor"] == socket.gethostname()
+    custom = nta.TrafficAnalyzer(sensor="analyzer-lab-01").report(top_n=5)
+    assert custom["sensor"] == "analyzer-lab-01"
+
+
+def test_report_id_is_stable_format_and_unique():
+    r1 = nta.TrafficAnalyzer().report(top_n=5)
+    r2 = nta.TrafficAnalyzer().report(top_n=5)
+    assert vr.REPORT_ID_RE.match(r1["report_id"]), r1["report_id"]
+    assert r1["report_id"] != r2["report_id"]
 
 
 def test_json_report_is_serializable_and_valid(tmp_path):
@@ -94,6 +145,62 @@ def test_json_report_is_serializable_and_valid(tmp_path):
     payload = json.loads(json.dumps(report))
     assert payload["packets"] == 3
     assert set(payload) >= REQUIRED_REPORT_KEYS
+    # Every report the analyzer emits must pass the Stage 7 ingestion gate.
+    assert vr.validate_report(payload) == []
+
+
+# --- Schema validator (Stage 7 ingestion gate, INTEGRATION.md §6) -------------
+
+def _minimal_v10_report():
+    return {
+        "schema_version": "traffic-report/1.0",
+        "generated_at": "2026-08-09T04:56:31.670573+00:00",
+        "packets": 0, "bytes": 0, "malformed_packets": 0,
+        "protocols": {}, "top_sources": [], "top_destinations": [],
+        "top_flows": [], "tcp_flags": {}, "detections": [],
+    }
+
+def test_validator_accepts_v10_and_v11():
+    v10 = _minimal_v10_report()
+    assert vr.validate_report(v10) == []
+    v11 = dict(v10, schema_version="traffic-report/1.1")
+    missing = vr.validate_report(v11)
+    assert any("missing required fields" in p for p in missing)
+    v11.update(report_id="sb-tr-20260914T120000Z-1a2b3c4d", sensor="analyzer",
+               capture_start="2026-08-09T04:55:00+00:00",
+               capture_end="2026-08-09T04:56:31+00:00")
+    assert vr.validate_report(v11) == []
+
+
+def test_validator_rejects_bad_fields():
+    base = dict(_minimal_v10_report())
+    bad_cases = [
+        ("schema_version", "traffic-report/9.9"),
+        ("generated_at", "2026-08-09T04:56:31"),          # no offset
+        ("packets", -1),
+        ("packets", "3"),
+        ("packets", True),                                # bool is not an int
+        ("protocols", {"TCP": "3"}),
+        ("detections", "none"),
+        ("top_flows", ["10.0.0.1 -> 10.0.0.2"]),          # flat string regression
+        ("top_flows", [{"proto": "TCP"}]),                # missing keys
+        ("top_sources", [{"value": "x", "count": -2}]),
+    ]
+    for key, value in bad_cases:
+        report = dict(base)
+        report[key] = value
+        assert vr.validate_report(report), f"expected rejection for {key}={value!r}"
+
+
+def test_validator_v11_extras():
+    report = _minimal_v10_report()
+    report.update(schema_version="traffic-report/1.1", sensor="analyzer",
+                  report_id="not-a-valid-id",
+                  capture_start="2026-08-09T04:56:31+00:00",
+                  capture_end="2026-08-09T04:55:00+00:00")
+    problems = vr.validate_report(report)
+    assert any("report_id" in p for p in problems)
+    assert any("capture_start must not be after capture_end" in p for p in problems)
 
 
 # --- Protocol classification --------------------------------------------------

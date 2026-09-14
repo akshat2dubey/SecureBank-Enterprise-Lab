@@ -83,12 +83,12 @@ Nothing is applied "because someone said so"; each control earns its place.
 - **Verification:** SSH login shows the banner; `sshd -T | grep -i banner`; `tests/module1-verify.sh`.
 - **Impact:** none. (Review T-12.)
 
-### C-12 — Local ed25519 admin keypair (Module 1) ✅
-- **Purpose:** key auth works from day one, and Module 4's key-only switch is config-only instead of a scramble; the traffic script's loopback SSH becomes a genuine auth success.
-- **Threat:** none directly — foundation for the Module 4 revocation of C-04.
-- **Configuration:** `scripts/setup.sh` generates `~/.ssh/id_ed25519` for the admin user and self-authorizes the public key. **This key is loopback-only** — a private key that never leaves the server cannot authenticate clients. Kali's own key is provisioned with `ssh-keygen` + `ssh-copy-id` (README).
-- **Verification:** key exists, `authorized_keys` contains its pubkey; `tests/module1-verify.sh`.
-- **Impact:** a passwordless local key is safe in the lab because anyone who can read it already has admin. (Review T-10.)
+### C-12 — Admin SSH keys: Kali is the sole origin (Module 1; revised in review) ✅
+- **Purpose:** key auth works from day one, and Module 4's key-only switch is config-only instead of a scramble.
+- **Threat:** a server-generated, self-authorized private key has no legitimate client use and muddies key provenance (Module 4 audit, Stage 8 investigations).
+- **Configuration:** the server does **not** generate keys. `scripts/setup.sh` ensures `~/.ssh` exists with 700 perms and corrects `authorized_keys` permissions when present. Kali generates the admin key (`ssh-keygen -t ed25519`) and installs it with `ssh-copy-id` (README).
+- **Verification:** `~/.ssh` is 700; `authorized_keys` (when provisioned) is 600 and non-empty; **no** server-generated `id_*` private key remains; `tests/module1-verify.sh`.
+- **Impact:** none — the traffic generator proves SSH the same way from Kali. (Review T-10.)
 
 ### C-13 — Security-only automatic updates (Module 1) ✅
 - **Purpose:** "starts patched" must not mean "stays unpatched" — security fixes arrive without admin action, feature updates and reboots do not.
@@ -110,6 +110,13 @@ Nothing is applied "because someone said so"; each control earns its place.
 - **Configuration:** journald `Storage=persistent` (`configs/etc/systemd/journald.conf.d/99-securebank.conf`); nftables `log prefix "SB-DROP"` (rate-limited 5/s burst 10) on the input drop path; `collect-forensics.sh` on-demand snapshots; setup-log config hashes.
 - **Verification:** `test -d /var/log/journal`; `nft list ruleset | grep SB-DROP`; `tests/module1-verify.sh`.
 - **Impact:** disk usage grows with logs — bounded by journald rotation, acceptable for the lab. auditd deliberately deferred (see host-auditing.md). (Reviewer S2.3.)
+
+### C-16 — Static lab addressing on the lab NIC (Module 2) 🟡 DRAFT — wording pending your review
+- **Purpose:** the address Stages 1/5/6/7 depend on is *configured*, not leased — identity survives reboots, DHCP outages, and hypervisor quirks; the v6 ULA mirrors the v4 plan.
+- **Threat:** a DHCP change or failed lease silently moves the server's address and breaks every cross-stage assumption in `INTEGRATION.md` §2; a host-only NIC that falls back to APIPA (169.254.x.x) leaves the box half-off the lab.
+- **Configuration:** `scripts/setup.sh` step 3b — detects the lab NIC (address inside `SB_LAB_SUBNET`), detects the backend (netplan, else systemd-networkd), renders `configs/etc/netplan/99-securebank.yaml` or `configs/etc/systemd/network/10-securebank-lab.network` from `lab.env` (`SB_SRV_IP`, `SB_LAB_SUBNET`, `SB_SRV_IPV6`, `SB_IPV6_LAB_SUBNET`), applies it, and confirms effective state with `ip addr`. Cloud-init images get the network opt-out. Session-drop guard aborts before applying if the live SSH session would be cut (`SB_NET_SKIP=1` + `SB_NET_FORCE=1` to override).
+- **Verification:** `ip -4 addr show <lab-nic>` holds `SB_SRV_IP/24`; `ip -6 addr show` holds `SB_SRV_IPV6/64`; rendered file `cmp`s the repo template; `tests/module1-verify.sh` "Module 2" section re-derives all of it independently.
+- **Impact:** the NAT NIC keeps DHCP (updates unaffected); `setup.sh` can no longer run on a VM with no lab-side address (it aborts with instructions — by design, mirroring the firewall guard). Peer VMs are documented snippets, not automated — deliberate: they are not Stage 2 hosts.
 
 ## Planned but deliberately not applied yet
 

@@ -6,10 +6,7 @@
 > → threat modeling → vulnerable banking app → reconnaissance → authorized
 > penetration testing → SIEM → incident response → DevSecOps.
 
-**Status:** ✅ Stages 1–2 complete & verified · **Glue:** `lab.env` +
-`INTEGRATION.md` make the stages one ecosystem · **Style:** idempotent Bash +
-Python, documentation-first, verify-the-effective-state testing · **Reports:**
-human-readable completion reports in [`reports/`](reports/)
+**Status:** ✅ Stage 1 foundation complete & tested · 🟡 Stage 2 foundation complete — Modules 2–8 planned (Module 2 code complete, verify on the VM) · 🔶 Stage 3 threat-model skeleton in progress · **Glue:** `lab.env` + `INTEGRATION.md` make the stages one ecosystem · **Style:** idempotent Bash + Python, documentation-first, verify-the-effective-state testing · **Reports:** human-readable completion reports in [`reports/`](reports/)
 
 ---
 

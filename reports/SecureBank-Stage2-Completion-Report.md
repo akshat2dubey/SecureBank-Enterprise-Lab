@@ -1,7 +1,7 @@
 # SecureBank Enterprise Lab — Stage 2 Completion Report
 
 **Stage:** 2 — SecureBank Linux Server
-**Status:** ✅ Module 1 complete (Server Foundation + baseline hardening)
+**Status:** ✅ Foundation complete (Module 1) — 🟡 Module 2 code complete, verify on the VM; Modules 2–8 planned
 **Date:** August 2026
 **Ecosystem:** one of nine interconnected stages (see `INTEGRATION.md` at the repo root)
 
@@ -70,7 +70,7 @@ automated suite that checks *effective runtime state*, not just file existence.
 | C-09 | sysctl network hardening | spoofing, redirect MITM, SYN floods |
 | C-10 | NTP enabled | clock drift corrupts evidence |
 | C-11 | Authorized-use banner | legal/authorized-use notice |
-| C-12 | Local ed25519 keypair (loopback; Kali key via ssh-copy-id) | Module 4 key-only switch is config-only |
+| C-12 | Admin SSH keys — Kali is the sole origin (no server-side keypair) | key-provenance muddying; Module 4 audit + Stage 8 investigations |
 | C-13 | Security-only automatic updates | known-vulnerability exploitation |
 | C-14 | AppArmor enforced where the platform ships it | compromised service escape |
 | C-15 | Persistent journal + firewall drop logging + forensics kit | no evidence to investigate incidents |
@@ -94,7 +94,10 @@ automated suite that checks *effective runtime state*, not just file existence.
 
 ## 6. Firewall policy (nftables, `inet` table — IPv4 + IPv6)
 
-Default deny inbound; outbound allowed (updates via NAT NIC); forward dropped.
+Default deny inbound; **outbound unrestricted — the documented current lab
+posture, not an "outbound-only updates" policy** (a deliberate egress
+allow-list arrives with later modules once required destinations are
+recorded); forward dropped.
 
 | Rule | Action |
 |---|---|
@@ -106,9 +109,12 @@ Default deny inbound; outbound allowed (updates via NAT NIC); forward dropped.
 | SSH from `10.10.10.0/24` (IPv4) and `fe80::/10` (link-local v6) | accept |
 | everything else inbound | **drop + log** `SB-DROP` (rate-limited 5/s burst 10) |
 
-**Self-lockout guard:** setup.sh reads the live SSH session's source address
-(`ss`) and aborts with a clear message before applying the firewall if it
-would cut the admin's own session (escape hatch: `SB_FIREWALL_SKIP=1`).
+**Self-lockout guard:** setup.sh validates the REMOTE PEER address of the
+live SSH session (IPv4 + IPv6, via `ss -tnpe`'s explicit endpoint fields —
+not the local socket side, which Module 2's static plan changes on purpose)
+and aborts before applying the firewall if the peer would be cut. It fails
+closed when a session is live but its peer cannot be determined
+(escape hatch: `SB_FIREWALL_SKIP=1`).
 
 ## 7. sysctl network-hardening baseline
 
@@ -172,15 +178,15 @@ snapshots to `logs/package-baseline-<stamp>.txt`.
   `passwd securebank-admin`; **never** committed to the repo.
 - **Locked out?** Use the VM console (not SSH): `sudo -i` then `passwd`.
 - **Kali access (key):** on Kali once — `ssh-keygen -t ed25519`, then
-  `ssh-copy-id securebank-admin@<server-ip>`. The server's own key is
-  loopback-only (traffic script).
+  `ssh-copy-id securebank-admin@<server-ip>`. The server generates no keys
+  of its own — Kali is the sole admin-key origin (C-12).
 - **Reboot after kernel upgrade** before continuing to Module 2.
 
 ## 12. Roadmap — what comes next for Stage 2
 
 | Module | Focus | Status |
 |---|---|---|
-| 2 | Network Configuration — static IPs, DNS, routing, IPv6 ULA | 🔜 Next |
+| 2 | Network Configuration — static IPs, DNS, routing, IPv6 ULA | 🟡 Code complete — verify on the VM |
 | 3 | Services & Application Infrastructure (minimal banking services) | ⏳ Planned |
 | 4 | Server Hardening — key-only SSH (flip both switches, T-15), firewall extension, AppArmor profiles | ⏳ Planned |
 | 5 | Logging & Telemetry — journald → syslog RFC 5424 to Stage 7 | ⏳ Planned |

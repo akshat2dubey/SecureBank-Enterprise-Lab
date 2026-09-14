@@ -15,7 +15,8 @@ same commit:**
   hostnames, admin user, timezone).
 - **`INTEGRATION.md`** — the cross-stage contract: address registry, reserved
   ports, UTC timestamp convention, log transport (RFC 5424 → Stage 7 SIEM),
-  the Stage 1 report schema (`traffic-report/1.0`), artifact naming, and the
+  the Stage 1 report schema (INTEGRATION.md §6 — current: `traffic-report/1.1`,
+  additive-only over 1.0), artifact naming, and the
   contract changelog.
 
 If a stage needs an address, it **sources `lab.env`** — never hardcode an IP

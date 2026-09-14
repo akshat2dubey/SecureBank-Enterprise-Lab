@@ -1,7 +1,7 @@
 # Stage 2 — SecureBank Linux Server
 
 > The infrastructure foundation of the SecureBank Enterprise Lab.
-> **Status: Module 1 complete (Server Foundation).** Modules 2–8 planned — see the roadmap below.
+> **Status: foundation complete (Module 1) + Module 2 code complete — verify on the VM. Modules 2–8 planned — see the roadmap below.** Static addressing is code-complete; service isolation, telemetry forwarding, and full validation land in Modules 3–7.
 
 ## What this is
 
@@ -37,7 +37,7 @@ Full reasoning: [docs/architecture.md](docs/architecture.md)
 | # | Module | Focus | Status |
 |---|--------|-------|--------|
 | 1 | Server Foundation | VM, OS, users, groups, packages, SSH, baseline hardening (firewall, sysctl, banner, NTP) | ✅ Done |
-| 2 | Network Configuration | static IP, interfaces, DNS, routing, ports | 🔜 Next |
+| 2 | Network Configuration | static IP + IPv6 ULA on the lab NIC, peer snippets, verify checks | 🟡 Code complete — verify on the VM |
 | 3 | Services & Application Infrastructure | minimal banking services | ⏳ Planned |
 | 4 | Server Hardening | SSH hardening, firewall, least privilege, updates | ⏳ Planned |
 | 5 | Logging & Telemetry | auth/SSH/system/service/firewall logs | ⏳ Planned |
@@ -58,20 +58,25 @@ stage2-securebank-linux-server/
 │   ├── host-auditing.md       # host evidence strategy + deferrals (auditd/Fail2Ban/AIDE)
 │   └── services.md            # service inventory + log locations
 ├── scripts/
-│   ├── setup.sh               # Module 1: foundation + baseline hardening (run as root on the VM)
+│   ├── setup.sh               # Modules 1+2: foundation, hardening, static lab addressing (run as root on the VM)
 │   ├── generate-lab-traffic.sh# Stage 1 traffic generation
-│   └── collect-forensics.sh   # evidence snapshot (Stage 8 seed) + drift detection
+│   ├── collect-forensics.sh   # evidence snapshot (Stage 8 seed) + drift detection
+│   └── render-peer-configs.sh # Module 2: render Kali/analyzer snippets from lab.env (no root)
 ├── configs/
-│   └── etc/                   # banner, firewall, sshd, sysctl, apt, journald (all rendered from lab.env)
-│       ├── issue.net          # authorized-use banner
-│       ├── nftables.conf      # default-deny firewall, IPv4 + IPv6, SB-DROP logging
-│       ├── ssh/sshd_config.d/99-securebank.conf
-│       ├── sysctl.d/99-securebank.conf
-│       ├── apt/apt.conf.d/50securebank-unattended   # security-only auto-updates
-│       └── systemd/journald.conf.d/99-securebank.conf  # persistent journal
+│   ├── etc/                   # banner, firewall, sshd, sysctl, apt, journald, net configs (rendered from lab.env)
+│   │   ├── issue.net          # authorized-use banner
+│   │   ├── nftables.conf      # default-deny firewall, IPv4 + IPv6, SB-DROP logging
+│   │   ├── ssh/sshd_config.d/99-securebank.conf
+│   │   ├── sysctl.d/99-securebank.conf
+│   │   ├── apt/apt.conf.d/50securebank-unattended   # security-only auto-updates
+│   │   ├── netplan/99-securebank.yaml               # Module 2: static lab NIC (Ubuntu)
+│   │   ├── systemd/network/10-securebank-lab.network # Module 2: static lab NIC (Debian)
+│   │   └── cloud/cloud.cfg.d/99-securebank-network.cfg # cloud-init network opt-out
+│   └── other-vms/             # peer-VM snippet TEMPLATES (@VAR@ placeholders; render, don't copy)
+├── outputs/                   # rendered peer snippets (git-ignored)
 ├── logs/                      # runtime logs (git-ignored)
 └── tests/
-    └── module1-verify.sh      # Module 1 automated verification
+    └── module1-verify.sh      # Modules 1+2 automated verification
 ```
 
 ## Quick start (Module 1)
@@ -87,11 +92,13 @@ sudo -i
 # 2. Set the admin password (the script tells you if it's missing)
 passwd securebank-admin
 # NOTE: setup.sh also applies a default-deny firewall, but a self-lockout
-# guard aborts first if your live SSH session is outside the lab subnet
-# (10.10.10.0/24). Fix the NIC or re-run with SB_FIREWALL_SKIP=1 to skip
-# the firewall for now — the VM console always works.
+# guard aborts first if your live SSH session's REMOTE PEER is outside the
+# lab subnet (10.10.10.0/24) — or if it cannot determine the peer at all
+# (fail closed). Fix the NIC or re-run with SB_FIREWALL_SKIP=1 to skip the
+# firewall for now — the VM console always works.
 
 # 3. From Kali, connect and confirm (first time: provision Kali's key)
+#    Kali is the SOLE admin-key origin — the server generates no keys.
 ssh-keygen -t ed25519
 ssh-copy-id securebank-admin@<server-ip>
 ssh securebank-admin@<server-ip>
@@ -102,6 +109,25 @@ ssh securebank-admin@<server-ip>
 # 5. Optional, once Stage 1 is ready: generate traffic it can see.
 #    Run this ON KALI (client mode) so SSH/HTTP/ping cross the segment:
 ./scripts/generate-lab-traffic.sh   # see docs/network-design.md §5
+```
+
+## Module 2: static lab addressing (quick reference)
+
+The lab NIC holds `10.10.10.10/24` + `fd00:10:10::10/64` statically (C-16);
+the NAT NIC keeps DHCP for updates. Details, failure modes, and the peer-VM
+snippets: [docs/network-design.md §7](docs/network-design.md).
+
+```bash
+# On the server VM (console or SSH from the final address):
+sudo ./scripts/setup.sh            # applies static addressing + everything from Module 1
+sudo ./tests/module1-verify.sh     # now also verifies Module 2 effective state
+
+# On your host (no root): render the peer VM snippets and copy them over
+./scripts/render-peer-configs.sh   # -> outputs/peer-configs/*.md
+
+# Escape hatches (mirroring SB_FIREWALL_SKIP):
+#   SB_NET_SKIP=1               skip static addressing this run
+#   SB_NET_SKIP=1 SB_NET_FORCE=1  apply anyway and accept the SSH session drop
 ```
 
 ## Patch management (C-13)
@@ -144,11 +170,11 @@ persistent journal + SSH auth logs + rate-limited firewall drop logs
   ssh-copy-id securebank-admin@<server-ip>
   ```
 
-  The key setup.sh creates at `~/.ssh/id_ed25519` on the server is only for
-  the traffic script's loopback SSH (server → itself) and to prove key auth
-  works. A private key that never leaves the server cannot authenticate Kali,
-  so Module 4's key-only switch relies on the Kali-provisioned key above.
-  Never move a private key between machines.
+  The server generates NO keys of its own: admin keys come from Kali only.
+  A private key created on the server could never authenticate Kali, so
+  setup.sh only ensures `~/.ssh` exists with correct permissions and leaves
+  whatever Kali provisioned untouched. Never move a private key between
+  machines.
 
 ## Module 4 transition: SSH key-only authentication
 

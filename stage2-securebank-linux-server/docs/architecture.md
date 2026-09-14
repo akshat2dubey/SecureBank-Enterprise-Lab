@@ -1,6 +1,7 @@
 # SecureBank Linux Server — Architecture
 
-**Status:** Module 1 complete. This document is the canonical reference for how
+**Status:** Module 1 complete; Module 2 (static lab addressing) is code
+complete — verify on the VM. This document is the canonical reference for how
 Stage 2 fits the SecureBank Enterprise Lab and how it reserves integration
 points for Stages 3–9.
 
@@ -39,7 +40,7 @@ hosts without renaming anything.
 | Plane | Contains | Status |
 |---|---|---|
 | Foundation | OS, users, groups, packages, SSH | Module 1 ✅ |
-| Network identity | static IP, interfaces, /etc/hosts, DNS strategy | Module 2 |
+| Network identity | static IP, interfaces, /etc/hosts, DNS strategy | Module 2 🟡 code complete (verify on the VM) |
 | Services | sshd today; web / app / DB reserved | Module 3 |
 | Hardening | Baseline applied Module 1 (default-deny firewall, sysctl, banner, NTP, SSH allow-list); full hardening (key-only SSH, fail2ban, updates policy) | Module 4 |
 | Telemetry | auth/SSH/system/service/firewall logs + retention | Module 5 |
@@ -61,7 +62,7 @@ hosts without renaming anything.
 | Decision | Why | Integration impact |
 |---|---|---|
 | **Debian/Ubuntu server, not Kali** | Kali is a testing distro, not enterprise infrastructure. The attacker/target boundary must stay visible. | Standard OS for all later stage tooling; no conflicts. |
-| **Static lab IP 10.10.10.10** | Stage 1 filters, Stage 5 scans, Stage 6 targets, Stage 7 sources all need a stable address. | Predictable everywhere; configured in Module 2. |
+| **Static lab IP 10.10.10.10** | Stage 1 filters, Stage 5 scans, Stage 6 targets, Stage 7 sources all need a stable address. | Predictable everywhere; applied in Module 2 (netplan/networkd, rendered from `lab.env`). |
 | **Host-only + NAT NICs** | Host-only = lab traffic (visible to Stage 1); NAT = package updates only. | Stage 1 captures the host-only segment; the firewall never blinds the analyzer because capture is passive. |
 | **/etc/hosts names, no DNS server yet** | Zero moving parts; names like `securebank-srv.securebank.lab` work lab-wide. | A real DNS server (dnsmasq/BIND) can be added later without renaming anything. |
 | **Standard logs only** | The SIEM choice stays open until Stage 7. | rsyslog/journald are forwardable to any SIEM later. |
@@ -80,7 +81,7 @@ the lab — not the internet. See [security-hardening.md](security-hardening.md)
 | # | Module | Focus | Status |
 |---|--------|-------|--------|
 | 1 | Server Foundation | VM, OS, users, groups, packages, SSH, baseline hardening (firewall, sysctl, banner, NTP) | ✅ Done |
-| 2 | Network Configuration | static IP, interfaces, DNS, routing, ports | 🔜 Next |
+| 2 | Network Configuration | static lab IPs (v4+v6 ULA) from lab.env | 🟡 code complete — verify on the VM |
 | 3 | Services & Application Infrastructure | minimal banking services | ⏳ Planned |
 | 4 | Server Hardening | SSH hardening, firewall, least privilege, updates | ⏳ Planned |
 | 5 | Logging & Telemetry | auth/SSH/system/service/firewall logs | ⏳ Planned |

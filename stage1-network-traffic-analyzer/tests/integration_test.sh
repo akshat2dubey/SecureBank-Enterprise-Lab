@@ -14,6 +14,29 @@
 #                        v
 #        Stage 1 analyzer (10.10.10.30) captures -> JSON report -> verified
 #
+# ----------------------------------------------------------------------------
+# VISIBILITY CONTRACT (Kali <-> server unicast)
+# ----------------------------------------------------------------------------
+# A promiscuous NIC does NOT automatically see unicast traffic between OTHER
+# hosts on a virtual switch: hypervisors learn MAC -> port and forward
+# unicast only to the destination port. To observe Kali -> server SSH/HTTP,
+# ONE of these must be configured and PROVEN:
+#
+#   PREFERRED  hypervisor mirroring/promiscuous forwarding for the lab
+#              segment (VirtualBox: none -> use the fallback; VMware: port
+#              group 'Promiscuous Mode: Accept'; Proxmox: bridge 'mirror'
+#              or a dedicated mirror port; libvirt: <forward mode='bridge'>
+#              or an ebtbable mirror rule).
+#
+#   FALLBACK   capture on the SERVER itself (tcpdump -> --read-pcap, or run
+#              this test there against the lab NIC). This is then a
+#              HOST-BASED sensor, not a passive network sensor - document
+#              it as such in the run's evidence.
+#
+# ACCEPTANCE: this test passes ONLY if the report shows the known cross-host
+# SSH flow AND an HTTP (80/443) flow toward the server. Seeing only
+# ARP/broadcast traffic is a visibility FAILURE, not a quiet network.
+#
 # Run on the ANALYZER VM (10.10.10.30), as root or with capture permission:
 #     sudo ./tests/integration_test.sh [interface]
 #
@@ -59,6 +82,8 @@ bad() { printf '\033[31m[FAIL]\033[0m %s\n' "$1"; FAIL=$((FAIL + 1)); }
 echo "== SecureBank integration test: Stage 1 observes Stage 2 traffic =="
 echo "   analyzer interface : ${IFACE}   (this VM: ${SB_ANALYZER_IP})"
 echo "   traffic source     : ${KALI_USER}@${SB_KALI_IP} -> ${SB_SRV_IP}"
+echo "   visibility contract: cross-host SSH AND HTTP/80 flows MUST appear;"
+echo "                        ARP-only capture = mirroring misconfigured (see header)"
 
 # --- Preconditions -------------------------------------------------------------
 [ "$(id -u)" -eq 0 ] || { echo "[integration][ERROR] Run as root (sudo) - capture needs elevation." >&2; exit 1; }
@@ -95,22 +120,25 @@ echo "[integration] Capture finished."
 # --- 4/5. Verify the report -----------------------------------------------------
 [ -f "${REPORT}" ] || { bad "no report produced (${REPORT})"; exit 1; }
 
-python3 - "${REPORT}" "${SB_SRV_IP}" <<'PYEOF'
+python3 - "${REPORT}" "${SB_SRV_IP}" "${SB_KALI_IP}" <<'PYEOF'
 import json
 import sys
 
-report_path, server_ip = sys.argv[1], sys.argv[2]
+report_path, server_ip, kali_ip = sys.argv[1], sys.argv[2], sys.argv[3]
+
+problems = []
 
 def check(desc, cond):
     print(f"[{'PASS' if cond else 'FAIL'}] {desc}")
     if not cond:
-        sys.exit(1)
+        problems.append(desc)
 
 with open(report_path, encoding="utf-8") as fh:
     report = json.load(fh)
 
 check("report is valid JSON", True)
-check("report carries schema_version", report.get("schema_version") == "traffic-report/1.0")
+check("report carries a known schema_version (1.0/1.1)",
+      report.get("schema_version") in ("traffic-report/1.0", "traffic-report/1.1"))
 check("report has all required fields", all(
     k in report for k in ("generated_at", "packets", "bytes", "protocols",
                           "top_sources", "top_destinations", "top_flows",
@@ -122,22 +150,61 @@ check("ICMP observed (ping)", report["protocols"].get("ICMP", 0) > 0)
 addrs = {e["value"] for e in report["top_sources"]} | {e["value"] for e in report["top_destinations"]}
 check(f"server {server_ip} seen in traffic", server_ip in addrs)
 
+# ---- Visibility acceptance: known cross-host flows, not just ARP/broadcast ----
+# A capture that only shows ARP/broadcast proves the NIC is up, NOT that the
+# sensor sees unicast between Kali and the server (see the visibility contract
+# in the header: mirroring must be configured, or capture on the server).
+
+def _flow_pair(f):
+    return str(f.get("src", "")), str(f.get("dst", ""))
+
+def _ends_with(host):
+    return lambda f: kali_ip in _flow_pair(f) and server_ip in _flow_pair(f)
+
 ssh_flows = [f for f in report["top_flows"] if f.get("dst_port") == "22" or f.get("src_port") == "22"]
 check("SSH (port 22) flow recorded", len(ssh_flows) > 0)
+check("SSH flow is the known CROSS-HOST session (Kali <-> server)", any(_ends_with(kali_ip)(f) for f in ssh_flows))
+
+web_flows = [f for f in report["top_flows"]
+             if f.get("dst_port") in ("80", "443") or f.get("src_port") in ("80", "443")]
+check("HTTP/HTTPS (port 80 or 443) flow recorded (curl in the traffic generator)", len(web_flows) > 0)
+
+arp_only = (report["protocols"].get("ARP", 0) > 0
+            and report["protocols"].get("TCP", 0) == 0)
+check("visibility: capture is NOT ARP/broadcast-only (unicast was observed)", not arp_only)
 
 print("\nReport: " + report_path)
+if problems:
+    print(f"\n{len(problems)} check(s) failed:")
+    for problem in problems:
+        print(f"  - {problem}")
+    print("\nIf ARP appeared but no Kali<->server unicast: the sensor did NOT see")
+    print("the cross-host flow - fix hypervisor mirroring or capture on the server")
+    print("(see the visibility contract at the top of this script).")
+sys.exit(1 if problems else 0)
 PYEOF
 PY_OK=$?
+
+# --- 5b. Schema gate: validate the report with the Stage 7 ingestion validator ----
+VALIDATOR="${STAGE1_DIR}/Project/outputs/validate_report.py"
+VAL_OK=0
+if python3 "${VALIDATOR}" "${REPORT}" > "${EVIDENCE}/validation.txt" 2>&1; then
+  ok "report validates against INTEGRATION.md §6 (validate_report.py)"
+else
+  bad "schema validation failed - see ${EVIDENCE}/validation.txt"
+  VAL_OK=1
+fi
 
 # --- 6. Store evidence ------------------------------------------------------------
 {
   echo "Integration test evidence - $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "Analyzer: ${SB_ANALYZER_HOSTNAME}.${SB_DOMAIN} (${SB_ANALYZER_IP}) iface ${IFACE}"
   echo "Traffic : ${KALI_USER}@${SB_KALI_IP} -> ${SB_SRV_IP} (Stage 2 generator, client mode)"
-  echo "Result  : $( [ "${PY_OK}" -eq 0 ] && echo PASS || echo FAIL )"
+  echo "Visibility: cross-host SSH + HTTP/80 acceptance enforced (see script header)"
+  echo "Result  : $( [ "${PY_OK}" -eq 0 ] && [ "${VAL_OK}" -eq 0 ] && echo PASS || echo FAIL )"
 } > "${EVIDENCE}/summary.txt"
 
-if [ "${PY_OK}" -eq 0 ]; then
+if [ "${PY_OK}" -eq 0 ] && [ "${VAL_OK}" -eq 0 ]; then
   ok "Stage 1 observed Stage 2 traffic - evidence in reports/integration-${STAMP}/"
 else
   bad "report verification failed - see reports/integration-${STAMP}/"
@@ -145,4 +212,4 @@ fi
 
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"
-[ "${FAIL}" -eq 0 ] && [ "${PY_OK}" -eq 0 ]
+[ "${FAIL}" -eq 0 ] && [ "${PY_OK}" -eq 0 ] && [ "${VAL_OK}" -eq 0 ]

@@ -1,0 +1,136 @@
+{
+  "schema_version": "traffic-report/1.1",
+  "report_id": "sb-tr-20260914T161146Z-b018fab9",
+  "generated_at": "2026-09-14T16:11:46.497978+00:00",
+  "sensor": "DESKTOP-H9D5KTR",
+  "capture_start": "2026-07-14T03:33:20.250000+00:00",
+  "capture_end": "2026-07-14T03:33:29.500000+00:00",
+  "packets": 38,
+  "bytes": 2121,
+  "malformed_packets": 0,
+  "protocols": {
+    "TCP": 32,
+    "UDP": 3,
+    "ICMP": 2,
+    "ARP": 1
+  },
+  "top_sources": [
+    {
+      "value": "10.10.10.20",
+      "count": 21
+    },
+    {
+      "value": "10.10.10.10",
+      "count": 17
+    }
+  ],
+  "top_destinations": [
+    {
+      "value": "10.10.10.10",
+      "count": 21
+    },
+    {
+      "value": "10.10.10.20",
+      "count": 17
+    }
+  ],
+  "top_flows": [
+    {
+      "proto": "TCP",
+      "src": "10.10.10.20",
+      "src_port": "50000",
+      "dst": "10.10.10.10",
+      "dst_port": "22",
+      "count": 1
+    },
+    {
+      "proto": "TCP",
+      "src": "10.10.10.10",
+      "src_port": "22",
+      "dst": "10.10.10.20",
+      "dst_port": "50000",
+      "count": 1
+    },
+    {
+      "proto": "TCP",
+      "src": "10.10.10.20",
+      "src_port": "50001",
+      "dst": "10.10.10.10",
+      "dst_port": "22",
+      "count": 1
+    },
+    {
+      "proto": "TCP",
+      "src": "10.10.10.10",
+      "src_port": "22",
+      "dst": "10.10.10.20",
+      "dst_port": "50001",
+      "count": 1
+    },
+    {
+      "proto": "TCP",
+      "src": "10.10.10.20",
+      "src_port": "50002",
+      "dst": "10.10.10.10",
+      "dst_port": "22",
+      "count": 1
+    },
+    {
+      "proto": "TCP",
+      "src": "10.10.10.10",
+      "src_port": "22",
+      "dst": "10.10.10.20",
+      "dst_port": "50002",
+      "count": 1
+    },
+    {
+      "proto": "TCP",
+      "src": "10.10.10.20",
+      "src_port": "50003",
+      "dst": "10.10.10.10",
+      "dst_port": "22",
+      "count": 1
+    },
+    {
+      "proto": "TCP",
+      "src": "10.10.10.10",
+      "src_port": "22",
+      "dst": "10.10.10.20",
+      "dst_port": "50003",
+      "count": 1
+    },
+    {
+      "proto": "TCP",
+      "src": "10.10.10.20",
+      "src_port": "50004",
+      "dst": "10.10.10.10",
+      "dst_port": "22",
+      "count": 1
+    },
+    {
+      "proto": "TCP",
+      "src": "10.10.10.10",
+      "src_port": "22",
+      "dst": "10.10.10.20",
+      "dst_port": "50004",
+      "count": 1
+    }
+  ],
+  "tcp_flags": {
+    "S": 16,
+    "SA": 12,
+    "RA": 4
+  },
+  "detections": [
+    {
+      "type": "possible_port_scan",
+      "severity": "low",
+      "source": "10.10.10.10",
+      "detail": "one source touched many distinct destination ports",
+      "evidence": {
+        "unique_destination_ports": 16,
+        "threshold_min_ports": 15
+      }
+    }
+  ]
+}

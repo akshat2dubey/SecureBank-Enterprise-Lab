@@ -91,6 +91,7 @@ log "=== 1/5 TCP — SSH handshake to the lab address (${SSH_TARGET}) ==="
 # /var/log/auth.log — exactly the telemetry Stages 7/8 want. In client mode
 # this is a real cross-segment login: provision Kali's key first with
 #   ssh-keygen -t ed25519  &&  ssh-copy-id ${SB_ADMIN_USER}@${SB_SRV_IP}
+# (Kali is the sole admin-key origin — the server generates no keys.)
 ssh -o BatchMode=yes -o ConnectTimeout=3 "${SSH_TARGET}" true || true
 
 log "=== 2/5 UDP — DNS lookups ==="
@@ -103,8 +104,12 @@ for _ in $(seq 1 "${COUNT}"); do
   dig +short +time=2 +tries=1 deb.debian.org >/dev/null 2>&1 || true
 done
 if [ "${SB_TRAFFIC_MODE}" = "client" ]; then
-  # Client -> server UDP 53 crosses the segment even before dnsmasq exists
-  # (the server refuses, which is still visible traffic: ICMP port unreachable).
+  # Client -> server UDP 53 crosses the segment even before a DNS service
+  # exists. NOTE: this is a CLOSED-PORT PROBE, not legitimate DNS — the
+  # server runs no resolver yet, so the reply is ICMP port-unreachable
+  # (still visible traffic for the analyzer). Treat it as synthetic test
+  # traffic: INTEGRATION.md §3 keeps 53/udp reserved until a documented
+  # DNS service (dnsmasq/BIND) is deliberately deployed.
   dig +short +time=2 +tries=1 "@${SB_SRV_IP}" "${SB_FQDN}" >/dev/null 2>&1 || true
 fi
 
