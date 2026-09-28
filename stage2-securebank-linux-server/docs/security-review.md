@@ -180,9 +180,9 @@ item, and where it landed:
 
 | Reviewer item | Decision | Where it landed |
 |---|---|---|
-| Document the analyzer's operational limitation | ✅ Implemented | `stage1/Project/outputs/README.md` "Scope and limitations"; analyzer docstring |
+| Document the analyzer's operational limitation | ✅ Implemented | `stage1/docs/usage.md` "Scope and limitations"; analyzer docstring |
 | Malformed/truncated packet handling | ✅ Implemented | analyzer `process()` try/except → `malformed_packets` counter, never crashes; `display_report` guards `summary()` |
-| Minimal detection hooks (3 explainable rules) | ✅ Implemented | `stage1/Project/outputs/detections.py` — SYN flood, port scan, plaintext service; thresholds configurable via CLI; findings in `report["detections"]` |
+| Minimal detection hooks (3 explainable rules) | ✅ Implemented | `stage1/src/detections.py` — SYN flood, port scan, plaintext service; thresholds configurable via CLI; findings in `report["detections"]` |
 | Preserve the report schema, extend only | ✅ Implemented | `schema_version: "traffic-report/1.0"`; `top_flows` structured objects (planned in `INTEGRATION.md` §6); `malformed_packets`; `detections` |
 | Formal Stage 1 ↔ Stage 2 integration test | ✅ Implemented | `stage1/tests/integration_test.sh` (capture → trigger Kali traffic → verify report → evidence) + `tests/test_analyzer.py` pytest suite |
 | SSH key-only transition, defined + verified | ✅ Implemented (docs) | README "Module 4 transition" table; C-04/C-06 register entries; T-15 note (flip both switches) |

@@ -1,7 +1,7 @@
 # Asset Inventory
 
 **Source of truth:** built from `stage2/.../docs/architecture.md`,
-`network-design.md`, `security-hardening.md`, and `stage1/.../Project/outputs/`.
+`network-design.md`, `security-hardening.md`, and `stage1/src/` + `stage1/outputs/`.
 **Rule:** an asset's *data/sensitivity* here must match the owning stage's
 docs — if they disagree, fix the stage doc, not this file.
 

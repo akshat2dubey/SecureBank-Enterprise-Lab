@@ -71,7 +71,7 @@ Defined and versioned in `INTEGRATION.md` §6. SIEM consumers key on
 | `tcp_flags` | dict | TCP flag combination → count |
 | `detections` | list | heuristic findings (see §5); empty = nothing tripped |
 
-**Ingestion gate:** every report must pass `Project/outputs/validate_report.py`
+**Ingestion gate:** every report must pass `src/validate_report.py`
 (accepts 1.0 and 1.1) before Stage 7 consumes it — enforced by the unit suite
 and the integration test on every run.
 
@@ -122,7 +122,7 @@ correlation metadata (sensor identity, `report_id` format/uniqueness, PCAP
 replay reporting the original window), and the schema validator (1.0/1.1
 acceptance, bad-field rejection, window sanity).
 
-**Schema validation** — `Project/outputs/validate_report.py` is the Stage 7
+**Schema validation** — `src/validate_report.py` is the Stage 7
 ingestion gate: accepts 1.0 and 1.1 reports, rejects missing/mistyped fields,
 flat-string flows, bad timestamps, and invalid `report_id`s. The integration
 test runs it on every capture before evidence is stored.
@@ -144,10 +144,10 @@ evidence under `reports/integration-<timestamp>/`.
 
 | File | Role |
 |---|---|
-| `Project/outputs/network_traffic_analyzer.py` | the analyzer (entry: `src/main.py`) |
-| `Project/outputs/detections.py` | heuristic detection rules |
-| `Project/outputs/README.md` | usage, scope boundary, detections |
-| `Project/outputs/CODE_EXPLANATION.md` | line-by-line learning walkthrough |
+| `src/network_traffic_analyzer.py` | the analyzer (entry: `src/main.py`) |
+| `src/detections.py` | heuristic detection rules |
+| `docs/usage.md` | usage, scope boundary, detections |
+| `docs/CODE_EXPLANATION.md` | line-by-line learning walkthrough |
 | `tests/test_analyzer.py` | 25-test pytest suite |
 | `tests/integration_test.sh` | Stage 1 ↔ Stage 2 formal integration test |
 | `requirements.txt` | scapy (+ pytest for tests) |
@@ -158,13 +158,13 @@ evidence under `reports/integration-<timestamp>/`.
 python3 -m pip install -r requirements.txt
 
 # live capture (authorized interface only), human report
-sudo python3 Project/outputs/network_traffic_analyzer.py --interface eth0 --timeout 60
+sudo python3 src/network_traffic_analyzer.py --interface eth0 --timeout 60
 
 # offline analysis to JSON
-python3 Project/outputs/network_traffic_analyzer.py --read-pcap incident.pcap --json-out report.json
+python3 src/network_traffic_analyzer.py --read-pcap incident.pcap --json-out report.json
 
 # machine output for Stage 7 / cron
-python3 Project/outputs/network_traffic_analyzer.py --interface eth0 --timeout 60 --json-only
+python3 src/network_traffic_analyzer.py --interface eth0 --timeout 60 --json-only
 
 # tests
 python3 -m pytest tests/ -q

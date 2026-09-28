@@ -75,7 +75,7 @@ is applied by Module 2 (§7); peer VMs get theirs from the rendered snippets
 ## 5. Stage 1 observation points
 
 Stage 1 is a **passive Scapy analyzer**:
-`stage1-network-traffic-analyzer/Project/outputs/network_traffic_analyzer.py`.
+`stage1-network-traffic-analyzer/src/network_traffic_analyzer.py`.
 It records **metadata only** (never payloads) and reports:
 
 | Report section | Meaning |
