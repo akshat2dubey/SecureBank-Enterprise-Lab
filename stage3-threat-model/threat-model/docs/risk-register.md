@@ -172,6 +172,41 @@ named later stage).
 - **Status:** ⚠️ **Partially** → Stage 9 CI adds secret scanning (gitleaks).
   **Dependency:** Stage 9.
 
+### R-14 — Web app exploitation → host elevation or DB access (planned Module 3 services)
+- **STRIDE:** Elevation of privilege, Tampering, Information disclosure ·
+  **Assets:** A-19, A-24, A-25, A-26, A-27
+- **Scenario:** when Module 3 installs nginx (80/443) and Stage 4 adds the
+  deliberately vulnerable VulnBank app, a web exploit becomes the segment's
+  easiest foothold; without isolation it reaches the host or the database.
+- **L/H:** H / H → **High** (activates at Module 3 install — **not yet in
+  scope**; supersedes the generic R-10 with named assets)
+- **Controls (planned, registered in `stage2.../docs/module3-service-register.md`):**
+  C-17 (unprivileged sandboxed app runtime), C-18 (DB loopback-only bind,
+  minimal grants), C-08 extension (only 80/443 from the subnet), C-14
+  AppArmor profiles (Module 4), C-13 (patching).
+- **Residual:** the app is *supposed* to be vulnerable — controls bound the
+  blast radius (web tier ≠ root, DB ≠ network-reachable), they don't prevent
+  exploitation.
+- **Status:** 🔜 **Future** — re-rate with running services at Module 3;
+  findings feed Stage 6 (exploit) and Stage 7 (detect). **Dependency:**
+  Stage 2 Module 3.
+
+### R-15 — Silent service sprawl on the hardened host
+- **STRIDE:** Elevation of privilege, Information disclosure · **Assets:**
+  A-01, A-24, A-25
+- **Scenario:** extra/unregistered listeners appear over time (a package
+  pulls in a helper daemon, a debug port is left open) and the
+  minimal-surface posture decays without anyone noticing.
+- **L/H:** M / M → **Medium**
+- **Controls (planned):** C-19 — the verify suite enforces an explicit
+  listening-socket allow-list (`:22`, `:80`, `:443`, `127.0.0.1:3306`,
+  nothing else); T-18 ("document before install") remains the process gate;
+  C-08 default-deny bounds the network exposure of any stray listener.
+- **Residual:** allow-list runs when the suite runs; drift between runs is
+  covered by R-03's drift detection.
+- **Status:** 🔜 **Future** → activates with the Module 3 verify additions.
+  **Dependency:** Stage 2 Module 3.
+
 ---
 
 ## Controls deliberately not mapped to a STRIDE row
@@ -199,11 +234,17 @@ named later stage).
 | R-11 | Report tampering → SIEM | T/S | Low | ⚠️ | Stage 7 |
 | R-12 | Host-key TOFU | S | Medium | ✅ | — |
 | R-13 | Credential leakage | I | Medium | ⚠️ | Stage 9 |
+| R-14 | Web exploit → host/DB | E/T/I | High | 🔜 | Module 3 install |
+| R-15 | Service sprawl | E/I | Medium | 🔜 | Module 3 install |
 
 ## Open actions (do not lose these)
 
+0. **Module 3 (pre-install register done):** at install, promote the rows in
+   `stage2.../docs/module3-service-register.md` into `services.md`, add
+   C-17…C-19 to the hardening register, flip R-10/R-14 to in-scope, and add
+   the C-19 socket allow-list to the verify suite.
 1. **Module 4:** close R-01 (key-only SSH, flip both switches), extend C-08
-   for real services, add AppArmor profiles (feeds R-10).
+   for real services, add AppArmor profiles (feeds R-10/R-14).
 2. **Module 5 / Stage 7:** close R-05 (remote syslog) and R-11 (report
    ingestion gate); add R-08 ARP-spoofing detection rule.
 3. **Stage 6:** turn R-08 + R-10 into authorized pentest scenarios; findings

@@ -38,7 +38,7 @@ Full reasoning: [docs/architecture.md](docs/architecture.md)
 |---|--------|-------|--------|
 | 1 | Server Foundation | VM, OS, users, groups, packages, SSH, baseline hardening (firewall, sysctl, banner, NTP) | ✅ Done |
 | 2 | Network Configuration | static IP + IPv6 ULA on the lab NIC, peer snippets, verify checks | 🟡 Code complete — verify on the VM |
-| 3 | Services & Application Infrastructure | minimal banking services | ⏳ Planned |
+| 3 | Services & Application Infrastructure | minimal banking services | 📝 Pre-install register complete (`docs/module3-service-register.md`) — install pending VM baseline + owner sign-off |
 | 4 | Server Hardening | SSH hardening, firewall, least privilege, updates | ⏳ Planned |
 | 5 | Logging & Telemetry | auth/SSH/system/service/firewall logs | ⏳ Planned |
 | 6 | Stage 1 Integration | verified traffic between Stage 1 <-> Stage 2 | ⏳ Planned |

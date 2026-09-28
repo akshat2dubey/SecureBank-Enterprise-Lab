@@ -20,8 +20,8 @@ model and the target list for Stage 5/6.
 
 | Service | Port | Purpose | Security notes |
 |---|---|---|---|
-| nginx | 80/443 | Web front for the VulnBank app (Stage 4) | Separate vhost + dedicated app user, no root |
-| MariaDB / PostgreSQL | 3306 / 5432 | SecureBank application database | Bind to lab interface only; app-scoped DB user |
+| nginx | 80/443 | Web front for the VulnBank app (Stage 4) | Separate vhost + dedicated app user, no root — **pre-install register complete: `docs/module3-service-register.md` (T-18 satisfied ahead of build)** |
+| MariaDB / PostgreSQL | 3306 / 5432 | SecureBank application database | **Module 3 decision: bind 127.0.0.1 only (C-18 plan)** — never exposed to the segment; app-scoped DB user |
 | dnsmasq / BIND (optional) | 53 | Lab DNS | Only if a real DNS server is wanted; names already fixed in `lab.env` at the repo root (single source of truth) |
 | Log forwarder | 514/udp or 10514/tcp | Feed for the Stage 7 SIEM | Decided **with** Stage 7 — not locked in now |
 

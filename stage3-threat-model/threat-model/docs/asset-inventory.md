@@ -41,6 +41,22 @@ Legend — **C** = confidentiality, **I** = integrity, **A** = availability
 | A-22 | Recon tool / reports | Stage 5 | Consumes A-11/A-12 for target scope |
 | A-23 | Incident-response artifacts | Stage 8 | Consumes A-08/A-09/A-15 |
 
+## B2. Module 3 planned assets (detailed — registered ahead of install)
+
+Registered per rule C.1 ("add before you build"): the Module 3 service
+register (`stage2-securebank-linux-server/docs/module3-service-register.md`)
+defines nginx + the database tier **before** anything is installed. These
+assets are *planned*, not yet built; A-19/A-20 above remain the Stage 4
+application and data model that will run on top of A-24/A-25.
+
+| ID | Asset | Owner | Description | Data / sensitivity | CIA | Value |
+|---|---|---|---|---|---|---|
+| A-24 | nginx web tier (80/443) | Stage 2 M3 | Segment-facing reverse proxy for the future VulnBank app; binds the lab NIC; TLS on 443 | Web tier configs, TLS cert | I/A | **High** — the only new segment-facing service |
+| A-25 | MariaDB instance (3306) | Stage 2 M3 | Database engine, **loopback-only bind** (C-18 plan); hosts the future banking schema | DB engine configs, future banking data | C/I | **Critical** once data lands (Stage 4) |
+| A-26 | `securebank-app` service account | Stage 2 M3 | Unprivileged system user (nologin, no sudo) running the web tier | Account config | I | Medium |
+| A-27 | `vulnbank-db` database login | Stage 2 M3 | Single-schema, minimal-grant DB login for the app (created interactively — no credentials in the repo) | Grant config | C/I | **High** |
+| A-28 | TLS key material (443) | Stage 2 M3 | Lab certificate private key on the server (self-signed default; CA strategy revisit in Stage 6) | Private key | C | **High** |
+
 ## C. Asset inventory rules
 
 1. **Add before you build:** every new module adds its assets here *first*.

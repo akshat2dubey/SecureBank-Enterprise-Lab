@@ -30,14 +30,12 @@ hardening register C-01…C-15), and what remains open.
 | TB-6 | Segment ⇄ analyzer capture point | passive sniffing | metadata-only design (no payload storage), A-15 schema (metadata only) | PCAP capture (headers+payloads) must be authorized + handled as evidence |
 | TB-7 | Repo ⇄ running systems (config supply) | `setup.sh` renders `lab.env` + configs onto hosts | C-05 (UTC), T-03 (setup audit + hashes), drift detection in `module1-verify.sh` | no signed/CI-enforced config yet → Stage 9 |
 | TB-8 | (future) Server ⇄ SIEM/IR | syslog RFC 5424 (514/10514), reports | reserved in INTEGRATION.md §3/§5 | forwarder + schema validation → Module 5 / Stage 7 |
-| TB-9 | (future) App ⇄ DB | SQL (3306/5432) | reserved port; least-privilege DB user required (Module 3 gate) | design arrives with Stage 4 |
+| TB-9 | (future) App ⇄ DB | SQL (3306/5432) | reserved port; least-privilege DB user required (Module 3 gate); **Module 3 decision: DB binds 127.0.0.1 only (C-18 plan) — TB-9 becomes a local IPC boundary, not a network one** | design arrives with Stage 4; register: `stage2.../docs/module3-service-register.md` |
+| TB-10 | (future, Module 3) Segment ⇄ web tier | HTTP 80 / HTTPS 443 ingress from the lab subnet | C-17 plan (unprivileged sandboxed app runtime), C-08 extension (only 80/443 from the subnet), C-19 plan (verify-suite listening-socket allow-list) | rows activate at Module 3 install |
 
 ## 3. Reading this table
 
 - A boundary with **no open items** is considered *enforced by config* in the
   current lab.
 - An **open item** must become a control (C-number) or a named module task —
-  it is exactly what the risk register (R-rows) tracks.
-- Boundaries TB-8/TB-9 are *reservations*: the seam exists on paper so Stages
-  4 and 7 don't invent incompatible ones. That is the same pattern as the
-  reserved ports in `INTEGRATION.md` §3.
+  it is exactly what the risk register (R-rows) tracks.- Boundaries TB-8/TB-9/TB-10 are *reservations*: the seam exists on paper so Stages 4 and 7 don't invent incompatible ones. That is the same pattern as the reserved ports in `INTEGRATION.md` §3.
