@@ -74,7 +74,7 @@ Key design features / pros to highlight:
 - Command-line options: --interface, --timeout, --top, --json-out, --bpf
   (e.g. "tcp port 22"), --read-pcap for offline analysis.
 - Sample outputs: traffic_report.json and report.json under
-  stage1-network-traffic-analyzer/Project/outputs/.
+  stage1-network-traffic-analyzer/outputs/.
 - Status: stage scaffolded and analyzer working; README is what you are writing.
 
 ============================================================

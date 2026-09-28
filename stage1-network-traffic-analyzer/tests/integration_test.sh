@@ -65,7 +65,7 @@ fi
 
 IFACE="${1:-${SB_ANALYZER_IFACE:-eth0}}"
 CAPTURE_SECS="${SB_CAPTURE_SECS:-25}"
-ANALYZER="${STAGE1_DIR}/Project/outputs/network_traffic_analyzer.py"
+ANALYZER="${STAGE1_DIR}/src/network_traffic_analyzer.py"
 KALI_USER="${SB_KALI_SSH_USER:-kali}"
 KALI_STAGE2_DIR="${SB_KALI_STAGE2_DIR:-/root/SecureBank-Enterprise-Lab/stage2-securebank-linux-server}"
 
@@ -186,7 +186,7 @@ PYEOF
 PY_OK=$?
 
 # --- 5b. Schema gate: validate the report with the Stage 7 ingestion validator ----
-VALIDATOR="${STAGE1_DIR}/Project/outputs/validate_report.py"
+VALIDATOR="${STAGE1_DIR}/src/validate_report.py"
 VAL_OK=0
 if python3 "${VALIDATOR}" "${REPORT}" > "${EVIDENCE}/validation.txt" 2>&1; then
   ok "report validates against INTEGRATION.md §6 (validate_report.py)"

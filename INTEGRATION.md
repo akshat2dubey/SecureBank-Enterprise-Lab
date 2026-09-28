@@ -121,7 +121,7 @@ ISO-8601), `sensor`, `capture_start`, `capture_end`, `packets`, `bytes`,
   flows.
 - **`detections`** is an array of heuristic findings
   (`type`, `severity`, `source`/`detail`, `evidence`) — see
-  `stage1-network-traffic-analyzer/Project/outputs/detections.py`. Absence or
+  `stage1-network-traffic-analyzer/src/detections.py`. Absence or
   an empty array means "nothing tripped a threshold".
 - **`malformed_packets`** counts packets that could not be parsed; the analyzer
   never crashes on them.
@@ -131,12 +131,12 @@ ISO-8601), `sensor`, `capture_start`, `capture_end`, `packets`, `bytes`,
   (1.1) bound the capture window (first/last packet seen, UTC ISO-8601; `null`
   when zero packets were seen — PCAP replay reports the ORIGINAL window, not
   the replay wall-clock). Stage 7 joins these against log timelines.
-- **Every report must pass `Project/outputs/validate_report.py`** (the Stage 7
+- **Every report must pass `src/validate_report.py`** (the Stage 7
   ingestion gate; accepts 1.0 and 1.1) before it is ingested. The pytest suite
   and the integration test enforce this on every run.
 - Backward compatibility rule: a field may be *added*, never removed or
   re-purposed; any semantic change bumps `schema_version` and this section.
-- Reports land in `stage1-network-traffic-analyzer/Project/outputs/*.json`
+- Reports land in `stage1-network-traffic-analyzer/outputs/*.json`
   and integration-test evidence in `.../reports/integration-*/`.
 - **Consumption seam:** run the analyzer with `--json-only` for machine
   output — JSON to stdout (or `--json-out`, leaving stdout empty), status on
@@ -198,3 +198,4 @@ ISO-8601), `sensor`, `capture_start`, `capture_end`, `packets`, `bytes`,
 | Review | 2 | Firewall self-lockout guard now validates the SSH **remote peer** (IPv4+IPv6, fail-closed); server-side SSH key generation removed — Kali is the sole key origin | The guard read the local socket side (a real lockout-safety defect); a self-authorized server key has no legitimate use | Re-run `setup.sh` on the VM; delete any pre-existing server-side key manually |
 | Review | 1 | Report schema 1.0 → 1.1 (additive): `report_id`, `sensor`, `capture_start`/`capture_end`; `validate_report.py` ingestion gate | Stage 7 needs capture windows, sensor identity, and validated reports | 1.0 reports remain valid; Stage 7 accepts both versions |
 | Review | 2 | Logical planes (management/application/database/monitoring) documented (Stage 2 network-design §8) | Plane separation designed before services exist (one VM today) | Module 3/4 firewall + binding rules implement it; DB never exposes 3306/5432 to the segment by default |
+| Reorg | 1–3 | Stage artifacts consolidated into their stage folders: Stage 1 code flattened `Project/outputs/` → `src/` (+ `outputs/`, `docs/`); per-stage completion reports moved next to their stage (Stage 1 → stage root, Stage 2 → `docs/`); Stage 3 skeleton dir renamed `Threat model skelton/` → `threat-model/` | Each stage's deliverables live in exactly one folder whose name matches the stage number | Analyzer code is now `stage1-network-traffic-analyzer/src/*.py`; `reports/` keeps only cross-stage tooling; `build_reports.py`/`build_handoff.py` follow the new locations |

@@ -28,23 +28,26 @@ TREE = """SecureBank-Enterprise-Lab/
 ├── INTEGRATION.md                     # the cross-stage contract (v1.0)
 ├── HANDOFF.md                         # THIS file — paste into any AI
 ├── AI-README-PROMPT.md                # prompt for AI README writers
-├── reports/                           # completion reports (md/docx/html)
-│   ├── SecureBank-Stage1-Completion-Report.{md,docx,html}
-│   ├── SecureBank-Stage2-Completion-Report.{md,docx,html}
+├── reports/                           # cross-stage report tooling
+│   ├── STAGE-BUILD-REPORT.md          # per-stage build report
 │   ├── build_reports.py               # markdown -> docx/html generator
 │   └── build_handoff.py               # this generator
-├── stage3-securebank-threat-model/
+├── stage3-threat-model/
 │   ├── README.md                  # mission, inputs/outputs, status
-│   └── docs/                      # methodology, asset-inventory,
-│                                 # trust-boundaries, data-flow-diagram,
-│                                 # risk-register (STRIDE, consumes C-01..C-15)
+│   └── threat-model/              # skeleton: README + docs/ (methodology,
+│                                 # asset-inventory, trust-boundaries,
+│                                 # data-flow-diagram, risk-register —
+│                                 # STRIDE, consumes C-01..C-15)
 ├── stage1-network-traffic-analyzer/
-│   ├── Project/outputs/network_traffic_analyzer.py   # the analyzer
-│   ├── Project/outputs/detections.py                 # heuristic rules
-│   ├── Project/outputs/README.md                     # usage + scope boundary
-│   ├── Project/outputs/CODE_EXPLANATION.md           # learning walkthrough
+│   ├── src/network_traffic_analyzer.py               # the analyzer
+│   ├── src/detections.py                             # heuristic rules
+│   ├── src/validate_report.py                        # schema validator (Stage 7 ingestion gate)
+│   ├── src/main.py                                   # thin launcher
+│   ├── docs/usage.md                                 # usage + scope boundary
+│   ├── docs/CODE_EXPLANATION.md                      # learning walkthrough
+│   ├── outputs/                                      # sample JSON reports
+│   ├── SecureBank-Stage1-Completion-Report.{md,docx,html}
 │   ├── tests/test_analyzer.py                        # 25-test pytest suite
-│   ├── Project/outputs/validate_report.py            # schema validator (Stage 7 ingestion gate)
 │   ├── tests/integration_test.sh                     # Stage1 <-> Stage2 proof
 │   └── requirements.txt
 └── stage2-securebank-linux-server/
@@ -57,7 +60,8 @@ TREE = """SecureBank-Enterprise-Lab/
     ├── configs/other-vms/            # peer-VM snippet templates (@VAR@ placeholders)
     ├── docs/                         # architecture, network-design (§7 Module 2),
     │                                 # security-hardening (C-01..C-16),
-    │                                 # security-review, services, host-auditing
+    │                                 # security-review, services, host-auditing,
+    │                                 # Stage2 completion report (md/docx/html)
     └── logs/                         # runtime logs (git-ignored)
 """
 
@@ -88,8 +92,8 @@ schema 1.1 + validator). Stage 2 foundation complete (Module 1) with Module 2
 (static lab addressing) code complete — verify on the VM; Modules 2–8 planned.
 Stage 3 has a threat-model skeleton (asset inventory, trust boundaries, DFD,
 STRIDE risk register consuming the C-01…C-16 controls). Everything else is
-planned. The `reports/` directory holds human-readable completion reports
-(Markdown + Word + HTML) for the finished stages.
+planned. Each stage folder holds its own human-readable completion report
+(Markdown + Word + HTML) — Stage 1 at the stage root, Stage 2 in its docs/.
 
 ---
 
@@ -179,8 +183,8 @@ def read(path: Path) -> str:
 def main() -> int:
     integration = read(ROOT / "INTEGRATION.md")
     labenv = read(ROOT / "lab.env")
-    stage1 = read(ROOT / "reports" / "SecureBank-Stage1-Completion-Report.md")
-    stage2 = read(ROOT / "reports" / "SecureBank-Stage2-Completion-Report.md")
+    stage1 = read(ROOT / "stage1-network-traffic-analyzer" / "SecureBank-Stage1-Completion-Report.md")
+    stage2 = read(ROOT / "stage2-securebank-linux-server" / "docs" / "SecureBank-Stage2-Completion-Report.md")
 
     body = INTRO.format(TREE=TREE, INTEGRATION=integration, LABENV=labenv,
                         STAGE1=stage1, STAGE2=stage2)

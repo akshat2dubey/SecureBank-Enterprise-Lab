@@ -25,8 +25,8 @@ schema 1.1 + validator). Stage 2 foundation complete (Module 1) with Module 2
 (static lab addressing) code complete — verify on the VM; Modules 2–8 planned.
 Stage 3 has a threat-model skeleton (asset inventory, trust boundaries, DFD,
 STRIDE risk register consuming the C-01…C-16 controls). Everything else is
-planned. The `reports/` directory holds human-readable completion reports
-(Markdown + Word + HTML) for the finished stages.
+planned. Each stage folder holds its own human-readable completion report
+(Markdown + Word + HTML) — Stage 1 at the stage root, Stage 2 in its docs/.
 
 ---
 
@@ -39,23 +39,26 @@ SecureBank-Enterprise-Lab/
 ├── INTEGRATION.md                     # the cross-stage contract (v1.0)
 ├── HANDOFF.md                         # THIS file — paste into any AI
 ├── AI-README-PROMPT.md                # prompt for AI README writers
-├── reports/                           # completion reports (md/docx/html)
-│   ├── SecureBank-Stage1-Completion-Report.{md,docx,html}
-│   ├── SecureBank-Stage2-Completion-Report.{md,docx,html}
+├── reports/                           # cross-stage report tooling
+│   ├── STAGE-BUILD-REPORT.md          # per-stage build report
 │   ├── build_reports.py               # markdown -> docx/html generator
 │   └── build_handoff.py               # this generator
-├── stage3-securebank-threat-model/
+├── stage3-threat-model/
 │   ├── README.md                  # mission, inputs/outputs, status
-│   └── docs/                      # methodology, asset-inventory,
-│                                 # trust-boundaries, data-flow-diagram,
-│                                 # risk-register (STRIDE, consumes C-01..C-15)
+│   └── threat-model/              # skeleton: README + docs/ (methodology,
+│                                 # asset-inventory, trust-boundaries,
+│                                 # data-flow-diagram, risk-register —
+│                                 # STRIDE, consumes C-01..C-15)
 ├── stage1-network-traffic-analyzer/
-│   ├── Project/outputs/network_traffic_analyzer.py   # the analyzer
-│   ├── Project/outputs/detections.py                 # heuristic rules
-│   ├── Project/outputs/README.md                     # usage + scope boundary
-│   ├── Project/outputs/CODE_EXPLANATION.md           # learning walkthrough
+│   ├── src/network_traffic_analyzer.py               # the analyzer
+│   ├── src/detections.py                             # heuristic rules
+│   ├── src/validate_report.py                        # schema validator (Stage 7 ingestion gate)
+│   ├── src/main.py                                   # thin launcher
+│   ├── docs/usage.md                                 # usage + scope boundary
+│   ├── docs/CODE_EXPLANATION.md                      # learning walkthrough
+│   ├── outputs/                                      # sample JSON reports
+│   ├── SecureBank-Stage1-Completion-Report.{md,docx,html}
 │   ├── tests/test_analyzer.py                        # 25-test pytest suite
-│   ├── Project/outputs/validate_report.py            # schema validator (Stage 7 ingestion gate)
 │   ├── tests/integration_test.sh                     # Stage1 <-> Stage2 proof
 │   └── requirements.txt
 └── stage2-securebank-linux-server/
@@ -68,7 +71,8 @@ SecureBank-Enterprise-Lab/
     ├── configs/other-vms/            # peer-VM snippet templates (@VAR@ placeholders)
     ├── docs/                         # architecture, network-design (§7 Module 2),
     │                                 # security-hardening (C-01..C-16),
-    │                                 # security-review, services, host-auditing
+    │                                 # security-review, services, host-auditing,
+    │                                 # Stage2 completion report (md/docx/html)
     └── logs/                         # runtime logs (git-ignored)
 ```
 
@@ -197,7 +201,7 @@ ISO-8601), `sensor`, `capture_start`, `capture_end`, `packets`, `bytes`,
   flows.
 - **`detections`** is an array of heuristic findings
   (`type`, `severity`, `source`/`detail`, `evidence`) — see
-  `stage1-network-traffic-analyzer/Project/outputs/detections.py`. Absence or
+  `stage1-network-traffic-analyzer/src/detections.py`. Absence or
   an empty array means "nothing tripped a threshold".
 - **`malformed_packets`** counts packets that could not be parsed; the analyzer
   never crashes on them.
@@ -207,12 +211,12 @@ ISO-8601), `sensor`, `capture_start`, `capture_end`, `packets`, `bytes`,
   (1.1) bound the capture window (first/last packet seen, UTC ISO-8601; `null`
   when zero packets were seen — PCAP replay reports the ORIGINAL window, not
   the replay wall-clock). Stage 7 joins these against log timelines.
-- **Every report must pass `Project/outputs/validate_report.py`** (the Stage 7
+- **Every report must pass `src/validate_report.py`** (the Stage 7
   ingestion gate; accepts 1.0 and 1.1) before it is ingested. The pytest suite
   and the integration test enforce this on every run.
 - Backward compatibility rule: a field may be *added*, never removed or
   re-purposed; any semantic change bumps `schema_version` and this section.
-- Reports land in `stage1-network-traffic-analyzer/Project/outputs/*.json`
+- Reports land in `stage1-network-traffic-analyzer/outputs/*.json`
   and integration-test evidence in `.../reports/integration-*/`.
 - **Consumption seam:** run the analyzer with `--json-only` for machine
   output — JSON to stdout (or `--json-out`, leaving stdout empty), status on
@@ -274,6 +278,7 @@ ISO-8601), `sensor`, `capture_start`, `capture_end`, `packets`, `bytes`,
 | Review | 2 | Firewall self-lockout guard now validates the SSH **remote peer** (IPv4+IPv6, fail-closed); server-side SSH key generation removed — Kali is the sole key origin | The guard read the local socket side (a real lockout-safety defect); a self-authorized server key has no legitimate use | Re-run `setup.sh` on the VM; delete any pre-existing server-side key manually |
 | Review | 1 | Report schema 1.0 → 1.1 (additive): `report_id`, `sensor`, `capture_start`/`capture_end`; `validate_report.py` ingestion gate | Stage 7 needs capture windows, sensor identity, and validated reports | 1.0 reports remain valid; Stage 7 accepts both versions |
 | Review | 2 | Logical planes (management/application/database/monitoring) documented (Stage 2 network-design §8) | Plane separation designed before services exist (one VM today) | Module 3/4 firewall + binding rules implement it; DB never exposes 3306/5432 to the segment by default |
+| Reorg | 1–3 | Stage artifacts consolidated into their stage folders: Stage 1 code flattened `Project/outputs/` → `src/` (+ `outputs/`, `docs/`); per-stage completion reports moved next to their stage (Stage 1 → stage root, Stage 2 → `docs/`); Stage 3 skeleton dir renamed `Threat model skelton/` → `threat-model/` | Each stage's deliverables live in exactly one folder whose name matches the stage number | Analyzer code is now `stage1-network-traffic-analyzer/src/*.py`; `reports/` keeps only cross-stage tooling; `build_reports.py`/`build_handoff.py` follow the new locations |
 ```
 
 ## 3. lab.env — the single source of truth (full text)
@@ -401,7 +406,7 @@ Defined and versioned in `INTEGRATION.md` §6. SIEM consumers key on
 | `tcp_flags` | dict | TCP flag combination → count |
 | `detections` | list | heuristic findings (see §5); empty = nothing tripped |
 
-**Ingestion gate:** every report must pass `Project/outputs/validate_report.py`
+**Ingestion gate:** every report must pass `src/validate_report.py`
 (accepts 1.0 and 1.1) before Stage 7 consumes it — enforced by the unit suite
 and the integration test on every run.
 
@@ -452,7 +457,7 @@ correlation metadata (sensor identity, `report_id` format/uniqueness, PCAP
 replay reporting the original window), and the schema validator (1.0/1.1
 acceptance, bad-field rejection, window sanity).
 
-**Schema validation** — `Project/outputs/validate_report.py` is the Stage 7
+**Schema validation** — `src/validate_report.py` is the Stage 7
 ingestion gate: accepts 1.0 and 1.1 reports, rejects missing/mistyped fields,
 flat-string flows, bad timestamps, and invalid `report_id`s. The integration
 test runs it on every capture before evidence is stored.
@@ -474,10 +479,10 @@ evidence under `reports/integration-<timestamp>/`.
 
 | File | Role |
 |---|---|
-| `Project/outputs/network_traffic_analyzer.py` | the analyzer (entry: `src/main.py`) |
-| `Project/outputs/detections.py` | heuristic detection rules |
-| `Project/outputs/README.md` | usage, scope boundary, detections |
-| `Project/outputs/CODE_EXPLANATION.md` | line-by-line learning walkthrough |
+| `src/network_traffic_analyzer.py` | the analyzer (entry: `src/main.py`) |
+| `src/detections.py` | heuristic detection rules |
+| `docs/usage.md` | usage, scope boundary, detections |
+| `docs/CODE_EXPLANATION.md` | line-by-line learning walkthrough |
 | `tests/test_analyzer.py` | 25-test pytest suite |
 | `tests/integration_test.sh` | Stage 1 ↔ Stage 2 formal integration test |
 | `requirements.txt` | scapy (+ pytest for tests) |
@@ -488,13 +493,13 @@ evidence under `reports/integration-<timestamp>/`.
 python3 -m pip install -r requirements.txt
 
 # live capture (authorized interface only), human report
-sudo python3 Project/outputs/network_traffic_analyzer.py --interface eth0 --timeout 60
+sudo python3 src/network_traffic_analyzer.py --interface eth0 --timeout 60
 
 # offline analysis to JSON
-python3 Project/outputs/network_traffic_analyzer.py --read-pcap incident.pcap --json-out report.json
+python3 src/network_traffic_analyzer.py --read-pcap incident.pcap --json-out report.json
 
 # machine output for Stage 7 / cron
-python3 Project/outputs/network_traffic_analyzer.py --interface eth0 --timeout 60 --json-only
+python3 src/network_traffic_analyzer.py --interface eth0 --timeout 60 --json-only
 
 # tests
 python3 -m pytest tests/ -q

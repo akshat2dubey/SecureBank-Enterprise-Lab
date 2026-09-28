@@ -18,8 +18,8 @@ from pathlib import Path
 
 import pytest
 
-# Make the analyzer (and its detections module) importable from Project/outputs.
-OUTPUTS = Path(__file__).resolve().parent.parent / "Project" / "outputs"
+# Make the analyzer (and its detections module) importable from src/.
+OUTPUTS = Path(__file__).resolve().parent.parent / "src"
 sys.path.insert(0, str(OUTPUTS))
 
 import network_traffic_analyzer as nta  # noqa: E402

@@ -62,8 +62,8 @@ inside a script, config, test, or document.
 3. **Keep changes small and focused** on one stage/module per PR.
 4. **Update the docs that describe your change**: the stage README, the
    hardening register, `services.md`, `INTEGRATION.md` changelog, and — for a
-   completed module — the completion report in `reports/` (rebuild with
-   `python reports/build_reports.py`).
+   completed module — the stage's completion report (Markdown lives inside
+   the stage folder; rebuild with `python reports/build_reports.py`).
 5. **Run the checks** (see below) and paste the results in the PR.
 6. **Open the PR** with the checklist below filled in.
 

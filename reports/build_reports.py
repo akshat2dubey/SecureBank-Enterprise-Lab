@@ -6,7 +6,9 @@ the Markdown sources in this directory. Standard library only — no installs.
     python reports/build_reports.py --check    # verify the .docx parts are valid XML
 
 The Markdown sources (SecureBank-Stage*-Completion-Report.md) are the
-version-controlled truth; the generated .docx/.html are derived artifacts.
+version-controlled truth and live next to their stage (Stage 1 at the stage
+root, Stage 2 in stage2-securebank-linux-server/docs/); the generated
+.docx/.html are derived artifacts written next to each source.
 PDF: open the .html in a browser and Print -> Save as PDF, or convert the
 .docx with LibreOffice/Word.
 """
@@ -22,6 +24,11 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 REPORTS_DIR = Path(__file__).resolve().parent
+ROOT = REPORTS_DIR.parent
+REPORT_GLOBS = (
+    "stage*/SecureBank-Stage*-Completion-Report.md",
+    "stage*/docs/SecureBank-Stage*-Completion-Report.md",
+)
 INLINE_RE = re.compile(r"(\*\*[^*]+\*\*|`[^`]+`)")
 
 
@@ -340,7 +347,9 @@ def check_docx(path: Path) -> bool:
 
 
 def main() -> int:
-    md_files = sorted(REPORTS_DIR.glob("SecureBank-Stage*-Completion-Report.md"))
+    md_files: list[Path] = []
+    for pattern in REPORT_GLOBS:
+        md_files.extend(sorted(ROOT.glob(pattern)))
     if not md_files:
         print(f"No report Markdown sources found in {REPORTS_DIR}")
         return 1
@@ -355,7 +364,7 @@ def main() -> int:
     if "--check" in sys.argv:
         print("All generated files validated.")
     else:
-        print("\nDone. Outputs in reports/:")
+        print("\nDone. Outputs written next to each source:")
         for md in md_files:
             print(f"  {md.with_suffix('.docx').name}  (Microsoft Word)")
             print(f"  {md.with_suffix('.html').name}  (open in browser -> Print -> Save as PDF)")

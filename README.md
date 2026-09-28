@@ -6,7 +6,7 @@
 > → threat modeling → vulnerable banking app → reconnaissance → authorized
 > penetration testing → SIEM → incident response → DevSecOps.
 
-**Status:** ✅ Stage 1 foundation complete & tested · 🟡 Stage 2 foundation complete — Modules 2–8 planned (Module 2 code complete, verify on the VM) · 🔶 Stage 3 threat-model skeleton in progress · **Glue:** `lab.env` + `INTEGRATION.md` make the stages one ecosystem · **Style:** idempotent Bash + Python, documentation-first, verify-the-effective-state testing · **Reports:** human-readable completion reports in [`reports/`](reports/)
+**Status:** ✅ Stage 1 foundation complete & tested · 🟡 Stage 2 foundation complete — Modules 2–8 planned (Module 2 code complete, verify on the VM) · 🔶 Stage 3 threat-model skeleton in progress · **Glue:** `lab.env` + `INTEGRATION.md` make the stages one ecosystem · **Style:** idempotent Bash + Python, documentation-first, verify-the-effective-state testing · **Reports:** per-stage completion reports live inside each stage folder
 
 ---
 
@@ -48,10 +48,13 @@ Any change to an address, port, or artifact format must update `lab.env` + `INTE
 
 ## 📑 Completion reports
 
-Human-readable completion reports for each finished stage live in
-[`reports/`](reports/) — Markdown sources plus generated **Word (.docx)** and
-print-ready **HTML** (open in a browser → Print → Save as PDF). Rebuild them
-any time with `python reports/build_reports.py`.
+Each finished stage ships its own human-readable completion report next to
+its code — Markdown source plus generated **Word (.docx)** and print-ready
+**HTML** (open in a browser → Print → Save as PDF). Rebuild them any time
+with `python reports/build_reports.py`.
 
-- `reports/SecureBank-Stage1-Completion-Report.{md,docx,html}`
-- `reports/SecureBank-Stage2-Completion-Report.{md,docx,html}`
+- `stage1-network-traffic-analyzer/SecureBank-Stage1-Completion-Report.{md,docx,html}`
+- `stage2-securebank-linux-server/docs/SecureBank-Stage2-Completion-Report.{md,docx,html}`
+
+Cross-stage tooling and the portfolio-wide build report stay in `reports/`
+(`STAGE-BUILD-REPORT.md`, `build_reports.py`, `build_handoff.py`).

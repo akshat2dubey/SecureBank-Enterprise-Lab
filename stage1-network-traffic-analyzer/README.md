@@ -20,7 +20,7 @@ A passive Python/Scapy traffic analyzer that:
 - Produces **schema-versioned JSON reports** (`traffic-report/1.1`, see
   `INTEGRATION.md` §6) for downstream stages, with correlation metadata
   (`report_id`, `sensor`, capture window) and a validator that gates
-  SIEM ingestion (`Project/outputs/validate_report.py`)
+  SIEM ingestion (`src/validate_report.py`)
 - Runs 3 **explainable heuristic detections** (SYN flood, port scan, plaintext
   legacy services) — a learning-grade alert layer, not an IDS
 - Never crashes on malformed/truncated packets (counts them in
@@ -29,7 +29,7 @@ A passive Python/Scapy traffic analyzer that:
 
 **Scope boundary:** a lab-scale user-space analyzer, deliberately not a
 Zeek/Suricata replacement. Details and rationale in
-`Project/outputs/README.md`.
+`docs/usage.md`.
 
 ## How it connects to the rest of the lab
 
@@ -50,13 +50,13 @@ hypervisor port mirroring or capture on the server (documented fallback).
 ## Layout
 
 ```
-src/main.py                      # entry-point placeholder (see Project/outputs)
-Project/outputs/network_traffic_analyzer.py   # the analyzer
-Project/outputs/detections.py                 # heuristic detection rules
-Project/outputs/validate_report.py            # schema validator (Stage 7 ingestion gate)
-Project/outputs/README.md                     # usage + scope + detections
-Project/outputs/CODE_EXPLANATION.md           # learning walkthrough
-Project/outputs/report.json, traffic_report.json  # sample outputs
+src/main.py                      # thin launcher (same options as the analyzer)
+src/network_traffic_analyzer.py   # the analyzer
+src/detections.py                 # heuristic detection rules
+src/validate_report.py            # schema validator (Stage 7 ingestion gate)
+docs/usage.md                     # usage + scope + detections
+docs/CODE_EXPLANATION.md           # learning walkthrough
+outputs/report.json, outputs/traffic_report.json  # sample outputs
 tests/test_analyzer.py                        # pytest suite
 tests/integration_test.sh                     # Stage 1 <-> Stage 2 proof
 requirements.txt                              # scapy (+ pytest for tests)
@@ -69,16 +69,16 @@ requirements.txt                              # scapy (+ pytest for tests)
 python3 -m pip install -r requirements.txt
 
 # live capture (authorized interface only)
-sudo python3 Project/outputs/network_traffic_analyzer.py --interface eth0 --timeout 60 --json-out report.json
+sudo python3 src/network_traffic_analyzer.py --interface eth0 --timeout 60 --json-out report.json
 
 # offline analysis
-python3 Project/outputs/network_traffic_analyzer.py --read-pcap incident.pcap --json-out report.json
+python3 src/network_traffic_analyzer.py --read-pcap incident.pcap --json-out report.json
 
 # machine output for SIEM/cron (stdout stays parseable)
-python3 Project/outputs/network_traffic_analyzer.py --interface eth0 --timeout 60 --json-only
+python3 src/network_traffic_analyzer.py --interface eth0 --timeout 60 --json-only
 
 # validate a report (Stage 7 ingestion gate)
-python3 Project/outputs/validate_report.py report.json
+python3 src/validate_report.py report.json
 ```
 
 ## Test
